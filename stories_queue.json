@@ -1,0 +1,158 @@
+[
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_86.jpg",
+    "caption": "Желанна и красива",
+    "status": "draft"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_99.jpg",
+    "caption": "Красива и желанна",
+    "publish_time": "11:17",
+    "status": "published",
+    "published_at": "2026-05-06 16:26:58"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_113.jpg",
+    "caption": "Красива и желанна",
+    "publish_time": "11:21",
+    "status": "error",
+    "error_at": "2026-05-06 16:27:01",
+    "error_text": "RPCError 400: STORIES_TOO_MUCH (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_123.jpg",
+    "caption": "Красива и Любима",
+    "publish_time": "11:29",
+    "status": "error",
+    "error_at": "2026-05-06 16:27:06",
+    "error_text": "RPCError 400: STORIES_TOO_MUCH (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_133.jpg",
+    "caption": "Красива И Любима",
+    "publish_time": "11:32",
+    "status": "error",
+    "error_at": "2026-05-06 11:32:04"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_143.jpg",
+    "caption": "Красива И Любима",
+    "publish_time": "11:34",
+    "status": "published",
+    "published_at": "2026-05-06 11:34:36"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_224.jpg",
+    "caption": "Милая страсть",
+    "publish_time": "13:52",
+    "status": "published",
+    "published_at": "2026-05-06 13:52:39"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_234.jpg",
+    "caption": "Люблю секс",
+    "publish_time": "13:55",
+    "status": "error",
+    "error_at": "2026-05-06 13:55:12"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_374.jpg",
+    "caption": "Секс",
+    "publish_time": "16:14",
+    "status": "error",
+    "error_at": "2026-05-06 16:27:09",
+    "error_text": "RPCError 400: STORIES_TOO_MUCH (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_383.jpg",
+    "caption": "Секс",
+    "publish_time": "16:17",
+    "status": "error",
+    "error_at": "2026-05-06 16:27:12",
+    "error_text": "RPCError 400: STORIES_TOO_MUCH (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_392.jpg",
+    "caption": "Секс",
+    "publish_time": "16:20",
+    "status": "error",
+    "error_at": "2026-05-06 16:27:16",
+    "error_text": "RPCError 400: STORIES_TOO_MUCH (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_412.jpg",
+    "caption": "Секс",
+    "publish_time": "16:29",
+    "status": "error",
+    "error_at": "2026-05-06 16:29:04",
+    "error_text": "A premium account is required to execute this action (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_rudrassa",
+    "display_name": "rudrassa",
+    "photo_path": "stories\\7565144360_rudrassa_7565144360_433.jpg",
+    "caption": "Секс",
+    "publish_time": "16:36",
+    "status": "published",
+    "published_at": "2026-05-06 16:36:08"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_551.jpg",
+    "caption": "dsf",
+    "publish_time": "16:59",
+    "status": "error",
+    "error_at": "2026-05-06 16:59:13",
+    "error_text": "A premium account is required to execute this action (caused by SendStoryRequest)"
+  },
+  {
+    "owner_id": 7565144360,
+    "account_name": "7565144360_mohhamedai",
+    "display_name": "mohhamedai",
+    "photo_path": "stories\\7565144360_mohhamedai_7565144360_561.jpg",
+    "caption": "djhg",
+    "publish_time": "17:10",
+    "status": "error",
+    "error_at": "2026-05-06 17:10:12",
+    "error_text": "A premium account is required to execute this action (caused by SendStoryRequest)"
+  }
+]

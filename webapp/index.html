@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stories Manager</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #101923;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      padding: 18px 14px 90px;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .close {
+      font-size: 22px;
+      opacity: 0.7;
+    }
+
+    .profile {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      margin: 0 auto 12px;
+      background: linear-gradient(135deg, #2ea6ff, #8c5cff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .balance {
+      font-size: 34px;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+
+    .hint {
+      color: #8fa2b7;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    .card {
+      background: #172332;
+      border-radius: 20px;
+      padding: 16px;
+      margin-top: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      color: #9fb1c4;
+      font-size: 13px;
+      margin: 14px 0 7px;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      border: none;
+      outline: none;
+      background: #223145;
+      color: #fff;
+      font-size: 15px;
+    }
+
+    textarea {
+      resize: none;
+    }
+
+    .file-box {
+      background: #223145;
+      border-radius: 14px;
+      padding: 13px;
+    }
+
+    input[type="file"] {
+      padding: 0;
+      background: transparent;
+    }
+
+    .main-btn {
+      width: 100%;
+      margin-top: 18px;
+      padding: 15px;
+      border: none;
+      border-radius: 16px;
+      background: #2f9df4;
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .main-btn:disabled {
+      opacity: 0.55;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: #9fd4ff;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .quick {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .quick-item {
+      background: #223145;
+      border-radius: 16px;
+      padding: 14px 8px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .quick-icon {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+
+    .bottom-nav {
+     position: fixed;
+     left: 14px;
+     right: 14px;
+     bottom: 14px;
+
+     background: rgba(31, 48, 68, 0.78);
+     backdrop-filter: blur(18px);
+
+     border: 1px solid rgba(255,255,255,0.06);
+
+     border-radius: 26px;
+
+     padding: 10px 8px;
+
+     display: grid;
+     grid-template-columns: repeat(3, 1fr);
+     gap: 8px;
+
+     box-shadow:
+       0 8px 32px rgba(0,0,0,0.35),
+       inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .nav-item {
+      text-align: center;
+      padding: 7px 4px;
+      border-radius: 15px;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .nav-item.active {
+      background: rgba(255,255,255,0.16);
+    }
+
+    .nav-icon {
+      font-size: 20px;
+      display: block;
+      margin-bottom: 3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="top">
+    <div class="title">Stories Manager ✅</div>
+    <div class="close">×</div>
+  </div>
+
+  <div class="profile">
+    <div class="avatar">📸</div>
+    <div class="hint">Очередь сторис</div>
+    <div class="balance" id="queueCount">0</div>
+    <div class="hint">запланировано</div>
+  </div>
+
+  <div class="quick">
+
+  <div class="quick-item" onclick="showAccountsPage()">
+    <div class="quick-icon">👤</div>
+    Аккаунт
+  </div>
+
+  <div class="quick-item" onclick="focusTime()">
+    <div class="quick-icon">🕒</div>
+    Время
+  </div>
+
+  <div class="quick-item" onclick="focusPhoto()">
+    <div class="quick-icon">🖼</div>
+    Фото
+  </div>
+
+</div>
+
+<div class="card" id="accountsPage" style="display:none;">
+
+  <div class="card-title">
+    📲 Подключенные аккаунты
+  </div>
+
+  <div id="accountsList"></div>
+
+  <button class="main-btn" onclick="hideAccountsPage()">
+    Назад
+  </button>
+
+</div>
+
+  <div class="card">
+    <div class="card-title">Запланировать сторис</div>
+
+    <label>Аккаунт</label>
+    <select id="accountSelect"></select>
+
+    <label>Подпись</label>
+    <textarea id="caption" rows="4" placeholder="Введите подпись"></textarea>
+
+    <label>Время публикации</label>
+    <input type="time" id="publishTime" />
+
+    <label>Фото</label>
+    <div class="file-box">
+      <input type="file" id="photoInput" accept="image/*" />
+    </div>
+
+    <button class="main-btn" id="submitBtn" onclick="sendStory()">
+      Запланировать сторис
+    </button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="bottom-nav">
+
+  <div class="nav-item active" onclick="switchTab(this)">
+    <span class="nav-icon">📸</span>
+    Сторис
+  </div>
+
+  <div class="nav-item" onclick="switchTab(this)">
+    <span class="nav-icon">📋</span>
+    Очередь
+  </div>
+
+  <div class="nav-item" onclick="switchTab(this)">
+    <span class="nav-icon">⚙️</span>
+    Настройки
+  </div>
+
+</div>
+
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.expand();
+
+  const accountSelect = document.getElementById("accountSelect");
+  const captionInput = document.getElementById("caption");
+  const publishTimeInput = document.getElementById("publishTime");
+  const photoInput = document.getElementById("photoInput");
+  const submitBtn = document.getElementById("submitBtn");
+  const statusDiv = document.getElementById("status");
+
+  function focusAccount() {
+    accountSelect.scrollIntoView({ behavior: "smooth", block: "center" });
+    accountSelect.focus();
+  }
+
+  function focusTime() {
+    publishTimeInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    publishTimeInput.focus();
+  }
+
+  function focusPhoto() {
+    photoInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    photoInput.click();
+  }
+
+  function switchTab(element) {
+    document.querySelectorAll(".nav-item").forEach(el => {
+      el.classList.remove("active");
+    });
+
+    element.classList.add("active");
+
+    if (window.Telegram && window.Telegram.WebApp) {
+      tg.HapticFeedback.selectionChanged();
+    }
+  }
+  function showAccountsPage() {
+  document.getElementById("accountsPage").style.display = "block";
+
+  const accountsList = document.getElementById("accountsList");
+
+  accountsList.innerHTML = "";
+
+  const options = accountSelect.options;
+
+  for (let i = 0; i < options.length; i++) {
+    const div = document.createElement("div");
+
+    div.style.background = "#223145";
+    div.style.padding = "14px";
+    div.style.borderRadius = "14px";
+    div.style.marginTop = "10px";
+    div.style.fontWeight = "700";
+
+    div.innerHTML = "📸 " + options[i].text;
+
+    accountsList.appendChild(div);
+  }
+
+  tg.HapticFeedback.selectionChanged();
+}
+
+function hideAccountsPage() {
+  document.getElementById("accountsPage").style.display = "none";
+}
+
+  async function loadAccounts() {
+    try {
+      const response = await fetch("/api/accounts");
+      const accounts = await response.json();
+
+      accountSelect.innerHTML = "";
+
+      accounts.forEach(acc => {
+        const option = document.createElement("option");
+        option.value = acc.account_name;
+        option.textContent = acc.display_name;
+        accountSelect.appendChild(option);
+      });
+
+    } catch (e) {
+      statusDiv.innerHTML = "❌ Ошибка загрузки аккаунтов";
+    }
+  }
+
+  async function sendStory() {
+    const account = accountSelect.value;
+    const caption = captionInput.value.trim();
+    const publishTime = publishTimeInput.value;
+    const photo = photoInput.files[0];
+
+    if (!account) {
+      statusDiv.innerHTML = "❌ Выбери аккаунт";
+      return;
+    }
+
+    if (!publishTime) {
+      statusDiv.innerHTML = "❌ Выбери время";
+      return;
+    }
+
+    if (!photo) {
+      statusDiv.innerHTML = "❌ Загрузи фото";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    statusDiv.innerHTML = "⏳ Загружаю сторис...";
+
+    const formData = new FormData();
+    formData.append("account_name", account);
+    formData.append("caption", caption);
+    formData.append("publish_time", publishTime);
+    formData.append("photo", photo);
+
+    try {
+      const response = await fetch("/api/story", {
+        method: "POST",
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        statusDiv.innerHTML = "✅ Сторис поставлена в очередь";
+        captionInput.value = "";
+        publishTimeInput.value = "";
+        photoInput.value = "";
+
+        const queueCount = document.getElementById("queueCount");
+        queueCount.textContent = String(Number(queueCount.textContent) + 1);
+
+        tg.HapticFeedback.notificationOccurred("success");
+      } else {
+        statusDiv.innerHTML = "❌ " + result.error;
+      }
+
+    } catch (e) {
+      statusDiv.innerHTML = "❌ Ошибка отправки";
+    }
+
+    submitBtn.disabled = false;
+  }
+
+  loadAccounts();
+</script>
+
+</body>
+</html>

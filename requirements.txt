@@ -1,0 +1,7 @@
+python-dotenv
+python-telegram-bot
+telethon
+fastapi
+uvicorn
+python-multipart
+pillow
