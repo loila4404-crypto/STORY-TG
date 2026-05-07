@@ -132,7 +132,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if text == "📲 Мои аккаунты":
+    if "Мои аккаунты" in text:
         accounts = load_accounts()
 
         my_accounts = [
@@ -170,7 +170,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
-    elif text == "📊 Статистика":
+    elif "Статистика" in text:
         accounts = load_accounts()
         stories = load_stories_queue()
 
@@ -197,7 +197,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Ошибок: {len(errors)}"
         )
 
-    elif text == "⚙️ Настройки":
+    elif "Настройки" in text:
         await update.message.reply_text("⚙️ Настройки пока базовые.")
 
 
