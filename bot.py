@@ -134,16 +134,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "Мои аккаунты" in text:
         accounts = load_accounts()
+        my_accounts = []
 
-        my_accounts = [
-            (name, info)
-            for name, info in accounts.items()
-            if info.get("owner_id") == user_id
-        ]
+        for name, info in accounts.items():
+            if info.get("owner_id") != user_id:
+                continue
+
+            session_path = info.get("session", "").replace(".session", "")
+
+            try:
+                client = TelegramClient(
+                    session_path,
+                    API_ID,
+                    API_HASH
+                )
+
+                await client.connect()
+
+                if await client.is_user_authorized():
+                    my_accounts.append((name, info))
+
+                await client.disconnect()
+
+            except Exception:
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
 
         if not my_accounts:
             await update.message.reply_text(
-                "📲 У тебя пока нет подключенных аккаунтов."
+                "📲 У тебя пока нет активных подключенных аккаунтов."
             )
             return
 
@@ -166,7 +187,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             buttons.append(row)
 
         await update.message.reply_text(
-            "📲 Твои подключенные аккаунты:",
+            "📲 Твои активные подключенные аккаунты:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
