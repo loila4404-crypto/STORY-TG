@@ -5,6 +5,9 @@ import os
 
 os.environ["PYTHONUNBUFFERED"] = "1"
 
+print("Waiting before start...", flush=True)
+time.sleep(15)
+
 processes = [
     ["bot", [sys.executable, "-u", "bot.py"]],
     ["worker", [sys.executable, "-u", "stories_worker.py"]],
