@@ -7,6 +7,7 @@ from datetime import datetime
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
+from storage import get_accounts_dict, save_account, delete_account
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -49,10 +50,7 @@ menu = ReplyKeyboardMarkup(
 
 
 def load_accounts():
-    if not os.path.exists(ACCOUNTS_FILE):
-        return {}
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return get_accounts_dict()
 
 
 def save_accounts(data):
@@ -329,7 +327,7 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.clear()
             return ConversationHandler.END
 
-    accounts[account_name] = {
+    account_data = {
         "owner_id": user_id,
         "display_name": display_name,
         "phone": context.user_data.get("phone"),
@@ -338,8 +336,7 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "first_name": me.first_name,
         "session": f"sessions/{account_name}.session"
     }
-
-    save_accounts(accounts)
+    save_account(account_name, account_data)
 
     username = f"@{me.username}" if me.username else "нет username"
 
@@ -403,8 +400,7 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
     accounts = load_accounts()
 
     if account_name in accounts:
-        del accounts[account_name]
-        save_accounts(accounts)
+        delete_account(account_name)
 
     deleted_files = []
 
