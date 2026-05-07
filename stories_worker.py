@@ -114,13 +114,25 @@ def prepare_story_video(video_path):
         prepared_path
     ]
 
-    subprocess.run(
-        command,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
 
-    return prepared_path
+        if result.returncode != 0:
+            print("FFMPEG ERROR:", result.stderr, flush=True)
+            return video_path
+
+        print(f"Видео подготовлено: {prepared_path}", flush=True)
+
+        return prepared_path
+
+    except Exception as e:
+        print(f"Ошибка ffmpeg: {e}", flush=True)
+        return video_path
 
 
 async def publish_story(story, accounts):
