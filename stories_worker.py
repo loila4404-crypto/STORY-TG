@@ -229,6 +229,15 @@ async def main():
                 story["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 updated = True
 
+                file_path = story.get("file_path") or story.get("photo_path")
+
+                if file_path and os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        print(f"Файл удалён после публикации: {file_path}")
+                    except Exception as e:
+                        print(f"Не удалось удалить файл {file_path}: {e}")
+
                 await notify_owner(
                     story,
                     f"✅ Сторис опубликована\n\n"
@@ -256,11 +265,17 @@ async def main():
                 elif "photo not found" in raw_error or "фото не найдено" in raw_error:
                     nice_error = "Фото не найдено"
 
+                elif "file not found" in raw_error or "файл не найден" in raw_error:
+                    nice_error = "Файл не найден"
+
                 elif "stories_too_much" in raw_error:
                     nice_error = "Слишком много сторис подряд. Попробуй позже"
 
                 elif "failure while processing image" in raw_error:
                     nice_error = "Telegram не принял фото. Попробуй другое изображение"
+
+                elif "video" in raw_error:
+                    nice_error = "Telegram не принял видео. Попробуй mp4 до 60 секунд"
 
                 await notify_owner(
                     story,
@@ -270,6 +285,11 @@ async def main():
                 )
 
         if updated:
+            stories = [
+                story for story in stories
+                if story.get("status") != "published"
+            ]
+
             save_stories(stories)
 
         await asyncio.sleep(15)
