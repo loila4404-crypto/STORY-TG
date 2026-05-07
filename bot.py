@@ -292,7 +292,7 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛔ Доступ запрещен",
             reply_markup=menu
         )
-        
+
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -555,11 +555,26 @@ async def story_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def story_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("Нужно отправить именно фото.")
+    if not update.message.photo and not update.message.video:
+        await update.message.reply_text("Нужно отправить фото или видео.")
         return STORY_PHOTO
 
     account_name = context.user_data["story_account_name"]
+
+    if update.message.video:
+        video = update.message.video
+        file = await video.get_file()
+
+        filename = f"{account_name}_{update.effective_user.id}_{update.message.message_id}.mp4"
+        file_path = os.path.join(STORIES_DIR, filename)
+
+        await file.download_to_drive(file_path)
+
+        context.user_data["story_file_path"] = file_path
+        context.user_data["story_media_type"] = "video"
+
+        await update.message.reply_text("Видео сохранено ✅\nТеперь напиши подпись для сторис.")
+        return STORY_CAPTION
 
     photo = update.message.photo[-1]
     file = await photo.get_file()
@@ -569,7 +584,9 @@ async def story_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await file.download_to_drive(file_path)
 
+    context.user_data["story_file_path"] = file_path
     context.user_data["story_photo_path"] = file_path
+    context.user_data["story_media_type"] = "photo"
 
     await update.message.reply_text("Фото сохранено ✅\nТеперь напиши подпись для сторис.")
     return STORY_CAPTION
@@ -615,7 +632,9 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "owner_id": update.effective_user.id,
         "account_name": context.user_data["story_account_name"],
         "display_name": context.user_data["story_display_name"],
-        "photo_path": context.user_data["story_photo_path"],
+        "file_path": context.user_data.get("story_file_path") or context.user_data.get("story_photo_path"),
+        "photo_path": context.user_data.get("story_photo_path") or context.user_data.get("story_file_path"),
+        "media_type": context.user_data.get("story_media_type", "photo"),
         "caption": context.user_data["story_caption"],
         "publish_time": publish_time,
         "status": "scheduled",
