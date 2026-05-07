@@ -41,9 +41,10 @@ ACCOUNT_NAME, PHONE, CODE, PASSWORD, STORY_ACCOUNT, STORY_PHOTO, STORY_CAPTION, 
 
 menu = ReplyKeyboardMarkup(
     [
-        ["📲 Мои аккаунты", "➕ Добавить аккаунт"],
+        ["📱 Мои аккаунты", "➕ Добавить аккаунт"],
         ["🗑 Удалить аккаунт", "📸 Добавить сторис"],
         ["📊 Статистика", "⚙️ Настройки"],
+        ["🔗 Ссылка доступа"],
     ],
     resize_keyboard=True
 )
@@ -79,6 +80,33 @@ def valid_time(text):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    # ТВОЙ TELEGRAM ID
+    ALLOWED_USERS = {
+        7565144360
+    }
+
+    # Секретные invite коды
+    INVITE_CODES = {
+        "mysecretcode"
+    }
+
+    args = context.args
+
+    # Если юзер уже есть в whitelist
+    if user_id in ALLOWED_USERS:
+        pass
+
+    # Если зашел по invite ссылке
+    elif args and args[0] in INVITE_CODES:
+        ALLOWED_USERS.add(user_id)
+
+    # Если просто открыл бота
+    else:
+        return
+
     await update.message.reply_text(
         "Бот для Telegram Stories запущен ✅\n\n"
         "➕ Добавить аккаунт — подключить Telegram\n"
@@ -93,6 +121,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     text = update.message.text
+
+    if text == "🔗 Ссылка доступа":
+        bot_username = context.bot.username
+        invite_link = f"https://t.me/{bot_username}?start=mysecretcode"
+
+        await update.message.reply_text(
+            f"🔗 Ссылка доступа:\n\n{invite_link}"
+        )
+        return
 
     if text == "📲 Мои аккаунты":
         accounts = load_accounts()
