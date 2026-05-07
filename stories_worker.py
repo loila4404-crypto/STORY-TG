@@ -108,7 +108,7 @@ def prepare_story_video(video_path):
         "-t", "60",
 
         "-vf",
-        "transpose=1,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
+        "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
 
         "-c:v", "libx264",
         "-preset", "ultrafast",
