@@ -704,7 +704,7 @@ def main():
             STORY_ACCOUNT: [
               CallbackQueryHandler(story_account_callback, pattern="^story_acc_")
             ],
-            STORY_PHOTO: [MessageHandler(filters.PHOTO, story_photo)],
+            STORY_PHOTO: [MessageHandler(filters.PHOTO | filters.VIDEO, story_photo)],
             STORY_CAPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, story_caption)],
             STORY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, story_time)],
         },
