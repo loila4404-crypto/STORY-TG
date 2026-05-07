@@ -9,7 +9,12 @@ from PIL import Image, ImageOps
 from telegram import Bot
 from telethon import TelegramClient
 from telethon.tl.functions.stories import SendStoryRequest
-from telethon.tl.types import InputPrivacyValueAllowAll, InputMediaUploadedPhoto
+from telethon.tl.types import (
+    InputPrivacyValueAllowAll,
+    InputMediaUploadedPhoto,
+    InputMediaUploadedDocument,
+    DocumentAttributeVideo
+)
 from storage import get_accounts_dict
 
 load_dotenv()
@@ -107,22 +112,42 @@ async def publish_story(story, accounts):
             await client.disconnect()
             return False, "Сессия не авторизована"
 
-        photo_path = story["photo_path"]
+        file_path = story.get("file_path") or story.get("photo_path")
+        media_type = story.get("media_type", "photo")
 
-        if not os.path.exists(photo_path):
-            print(f"Фото не найдено: {photo_path}")
+        if not file_path or not os.path.exists(file_path):
+            print(f"Файл не найден: {file_path}")
             await client.disconnect()
-            return False, "Фото не найдено"
+            return False, "Файл не найден"
 
         caption = story.get("caption", "")
 
-        print(f"Готовлю фото: {photo_path}")
-        prepared_path = prepare_story_image(photo_path)
-
         print(f"Публикую сторис: {account_name}")
 
-        file = await client.upload_file(prepared_path)
-        media = InputMediaUploadedPhoto(file=file)
+        if media_type == "video" or file_path.lower().endswith((".mp4", ".mov", ".m4v")):
+            print(f"Готовлю видео: {file_path}")
+
+            file = await client.upload_file(file_path)
+
+            media = InputMediaUploadedDocument(
+                file=file,
+                mime_type="video/mp4",
+                attributes=[
+                    DocumentAttributeVideo(
+                        duration=15,
+                        w=1080,
+                        h=1920,
+                        supports_streaming=True
+                    )
+                ]
+            )
+
+        else:
+            print(f"Готовлю фото: {file_path}")
+
+            prepared_path = prepare_story_image(file_path)
+            file = await client.upload_file(prepared_path)
+            media = InputMediaUploadedPhoto(file=file)
 
         await client(
             SendStoryRequest(
