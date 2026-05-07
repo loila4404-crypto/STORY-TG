@@ -1,154 +1,39 @@
-import os
+import asyncio
 import json
-import shutil
+import os
 from datetime import datetime
+from datetime import datetime, timedelta
 
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from dotenv import load_dotenv
+from PIL import Image, ImageOps
+from telegram import Bot
+from telethon import TelegramClient
+from telethon.tl.functions.stories import SendStoryRequest
+from telethon.tl.types import (
+    InputPrivacyValueAllowAll,
+    InputMediaUploadedPhoto,
+    InputMediaUploadedDocument,
+    DocumentAttributeVideo
+)
+from storage import get_accounts_dict
 
-app = FastAPI()
+load_dotenv()
 
-from fastapi import Request, HTTPException
-
-ALLOWED_API_IPS = {
-    "5.63.19.65",
-    "5.63.19.66",
-    "5.63.19.67",
-    "5.63.19.68",
-    "5.63.19.71",
-    "5.63.19.74",
-    "5.63.19.75",
-    "5.63.19.82",
-    "5.63.19.84",
-    "5.63.19.86",
-    "5.63.19.87",
-    "5.63.19.88",
-    "5.63.19.89",
-    "5.63.19.91",
-    "5.63.19.136",
-    "5.63.19.85",
-    "192.142.54.51",
-    "192.142.10.199",
-    "192.142.53.117",
-    "192.142.53.150",
-    "192.142.53.154",
-    "192.142.10.193",
-    "185.163.45.96",
-    "5.181.157.49",
-    "5.181.157.54",
-    "5.181.157.50",
-    "5.181.157.51",
-    "5.181.157.52",
-    "5.181.157.53",
-    "192.142.54.193",
-    "192.142.53.212",
-    "192.142.53.199",
-    "192.142.45.8",
-    "192.142.45.5",
-    "192.142.45.173",
-    "192.142.45.104",
-    "192.142.18.207",
-    "192.142.18.142",
-    "192.142.18.109",
-    "38.7.145.131",
-    "38.7.145.207",
-    "38.7.145.208",
-    "38.7.145.210",
-    "38.7.145.211",
-    "38.7.145.235",
-    "45.141.56.44",
-    "45.141.56.123",
-    "2.56.10.23",
-    "2.56.10.26",
-    "2.56.10.34",
-    "85.121.149.215",
-    "85.121.149.216",
-    "85.121.149.217",
-    "85.121.149.218",
-    "85.121.149.219",
-    "196.196.208.56",
-    "196.196.208.55",
-    "196.196.208.54",
-    "196.196.208.53",
-    "196.196.208.52",
-    "196.196.208.51",
-    "192.142.55.66",
-    "192.142.54.171",
-    "192.142.54.150",
-    "192.142.54.121",
-    "192.142.54.118",
-    "192.142.54.101",
-    "192.142.53.84",
-    "192.142.53.218",
-    "192.142.53.111",
-    "192.142.53.110",
-    "192.142.45.69",
-    "192.142.45.161",
-    "192.142.18.53",
-    "192.142.18.237",
-    "192.142.18.211",
-    "192.142.18.183",
-    "192.142.18.115",
-    "192.142.10.164",
-    "192.142.10.156",
-    "192.142.10.121",
-    "45.82.64.24",
-    "45.82.64.29",
-    "45.82.64.59",
-    "45.82.64.74",
-    "45.82.64.176",
-    "85.121.149.223",
-    "85.121.149.224",
-    "85.121.149.225",
-    "85.121.149.227",
-    "85.121.149.228",
-    "185.153.198.162",
-    "185.153.198.68",
-    "185.153.198.69",
-    "185.153.198.130",
-    "185.153.198.131",
-    "185.153.198.132",
-    "185.153.198.133",
-    "185.153.198.135",
-    "185.153.198.137",
-    "185.153.198.140",
-}
-
-@app.middleware("http")
-async def api_ip_whitelist(request: Request, call_next):
-
-    path = request.url.path
-
-    # Разрешаем healthcheck и Telegram
-    if path in ["/", "/health", "/webhook"]:
-        return await call_next(request)
-
-    client_ip = request.headers.get("x-forwarded-for", request.client.host)
-
-    if client_ip:
-        client_ip = client_ip.split(",")[0].strip()
-
-    if client_ip not in ALLOWED_API_IPS:
-        raise HTTPException(status_code=403, detail="⛔ Доступ запрещен")
-
-    return await call_next(request)
-
-app.mount("/webapp", StaticFiles(directory="webapp"), name="webapp")
+API_ID = int(os.getenv("API_ID", "0"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 ACCOUNTS_FILE = "accounts.json"
 STORIES_QUEUE_FILE = "stories_queue.json"
-STORIES_DIR = "stories"
+PREPARED_DIR = "stories_prepared"
 
-os.makedirs(STORIES_DIR, exist_ok=True)
+os.makedirs(PREPARED_DIR, exist_ok=True)
+
+bot = Bot(token=BOT_TOKEN)
 
 
 def load_accounts():
-    if not os.path.exists(ACCOUNTS_FILE):
-        return {}
-
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return get_accounts_dict()
 
 
 def load_stories():
@@ -164,79 +49,231 @@ def save_stories(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+async def notify_owner(story, text):
+    owner_id = story.get("owner_id")
+
+    if not owner_id:
+        return
+
+    try:
+        await bot.send_message(chat_id=owner_id, text=text)
+    except Exception as e:
+        print(f"Ошибка отправки уведомления владельцу: {e}")
 
 
-@app.get("/stories")
-async def stories():
-    return FileResponse("webapp/index.html")
+def prepare_story_image(photo_path):
+    img = Image.open(photo_path)
+    img = ImageOps.exif_transpose(img)
+    img = img.convert("RGB")
+
+    target_w, target_h = 1080, 1920
+
+    img_ratio = img.width / img.height
+    target_ratio = target_w / target_h
+
+    if img_ratio > target_ratio:
+        new_h = target_h
+        new_w = int(target_h * img_ratio)
+    else:
+        new_w = target_w
+        new_h = int(target_w / img_ratio)
+
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    left = (new_w - target_w) // 2
+    top = (new_h - target_h) // 2
+    img = img.crop((left, top, left + target_w, top + target_h))
+
+    base_name = os.path.basename(photo_path)
+    prepared_path = os.path.join(PREPARED_DIR, f"prepared_{base_name}")
+
+    img.save(prepared_path, "JPEG", quality=90, optimize=True)
+
+    return prepared_path
 
 
-@app.get("/api/accounts")
-async def api_accounts():
-    accounts = load_accounts()
-
-    result = []
-
-    for account_name, info in accounts.items():
-        result.append({
-            "account_name": account_name,
-            "display_name": info.get("display_name", account_name)
-        })
-
-    return result
-
-
-@app.get("/health")
-async def health():
-    return {"status": "alive"}
-
-
-@app.post("/api/story")
-async def api_story(
-    account_name: str = Form(...),
-    caption: str = Form(...),
-    publish_time: str = Form(...),
-    photo: UploadFile = File(...)
-):
-    accounts = load_accounts()
+async def publish_story(story, accounts):
+    account_name = story["account_name"]
 
     if account_name not in accounts:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Аккаунт не найден"}
+        print(f"Аккаунт {account_name} не найден")
+        return False, "Аккаунт не найден"
+
+    info = accounts[account_name]
+    session_path = info["session"].replace(".session", "")
+
+    client = TelegramClient(session_path, API_ID, API_HASH)
+
+    try:
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            print(f"{account_name} не авторизован")
+            await client.disconnect()
+            return False, "Сессия не авторизована"
+
+        file_path = story.get("file_path") or story.get("photo_path")
+        media_type = story.get("media_type", "photo")
+
+        if not file_path or not os.path.exists(file_path):
+            print(f"Файл не найден: {file_path}")
+            await client.disconnect()
+            return False, "Файл не найден"
+
+        caption = story.get("caption", "")
+
+        print(f"Публикую сторис: {account_name}")
+
+        if media_type == "video" or file_path.lower().endswith((".mp4", ".mov", ".m4v")):
+            print(f"Готовлю видео: {file_path}")
+
+            file = await client.upload_file(file_path)
+
+            media = InputMediaUploadedDocument(
+                file=file,
+                mime_type="video/mp4",
+                attributes=[
+                    DocumentAttributeVideo(
+                        duration=15,
+                        w=1080,
+                        h=1920,
+                        supports_streaming=True
+                    )
+                ]
+            )
+
+        else:
+            print(f"Готовлю фото: {file_path}")
+
+            prepared_path = prepare_story_image(file_path)
+            file = await client.upload_file(prepared_path)
+            media = InputMediaUploadedPhoto(file=file)
+
+        await client(
+            SendStoryRequest(
+                peer="me",
+                media=media,
+                caption=caption,
+                privacy_rules=[InputPrivacyValueAllowAll()],
+                pinned=False,
+                noforwards=False,
+                period=86400,
+            )
         )
 
-    filename = (
-        f"{account_name}_"
-        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-    )
+        print(f"Сторис опубликована: {account_name}")
 
-    file_path = os.path.join(STORIES_DIR, filename)
+        await client.disconnect()
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(photo.file, buffer)
+        return True, None
 
-    stories = load_stories()
+    except Exception as e:
+        print(f"Ошибка публикации {account_name}: {e}")
 
-    stories.append({
-        "owner_id": accounts[account_name].get("owner_id"),
-        "account_name": account_name,
-        "display_name": accounts[account_name].get(
-            "display_name",
-            account_name
-        ),
-        "photo_path": file_path,
-        "caption": caption,
-        "publish_time": publish_time,
-        "status": "scheduled"
-    })
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
 
-    save_stories(stories)
+        return False, str(e)
 
-    return {
-        "success": True,
-        "message": "Сторис поставлена в очередь"
-    }
+
+async def main():
+    print("Stories worker запущен...")
+
+    while True:
+        now_dt = datetime.now() + timedelta(hours=3)
+        now_time = now_dt.strftime("%H:%M")
+
+        accounts = load_accounts()
+        stories = load_stories()
+
+        updated = False
+
+        print(f"Проверка очереди: {now_time}")
+
+        for story in stories:
+            if story.get("status") != "scheduled":
+                continue
+
+            publish_time = story.get("publish_time")
+
+            if not publish_time:
+                continue
+
+            try:
+                publish_dt = datetime.strptime(publish_time, "%H:%M").replace(
+                    year=now_dt.year,
+                    month=now_dt.month,
+                    day=now_dt.day
+                )
+            except ValueError:
+                story["status"] = "error"
+                story["error_text"] = "Неверный формат времени"
+                updated = True
+                continue
+
+            if publish_dt > now_dt:
+                continue
+
+            print(f"Нашел сторис для публикации: {story.get('display_name')} / {publish_time}")
+
+            success, error_text = await publish_story(story, accounts)
+
+            display_name = story.get("display_name", story.get("account_name"))
+            caption = story.get("caption", "")
+            published_time = datetime.now().strftime("%H:%M")
+
+            if success:
+                story["status"] = "published"
+                story["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                updated = True
+
+                await notify_owner(
+                    story,
+                    f"✅ Сторис опубликована\n\n"
+                    f"Аккаунт: {display_name}\n"
+                    f"Время: {published_time}\n"
+                    f"Подпись: {caption}"
+                )
+
+            else:
+                story["status"] = "error"
+                story["error_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                story["error_text"] = error_text
+                updated = True
+
+                raw_error = str(error_text).lower()
+
+                nice_error = "Неизвестная ошибка"
+
+                if "premium account is required" in raw_error:
+                    nice_error = "Требуется Telegram Premium"
+
+                elif "not authorized" in raw_error or "не авторизован" in raw_error:
+                    nice_error = "Аккаунт не авторизован"
+
+                elif "photo not found" in raw_error or "фото не найдено" in raw_error:
+                    nice_error = "Фото не найдено"
+
+                elif "stories_too_much" in raw_error:
+                    nice_error = "Слишком много сторис подряд. Попробуй позже"
+
+                elif "failure while processing image" in raw_error:
+                    nice_error = "Telegram не принял фото. Попробуй другое изображение"
+
+                await notify_owner(
+                    story,
+                    f"⚠️ Не удалось опубликовать сторис\n\n"
+                    f"Аккаунт: {display_name}\n"
+                    f"Причина: {nice_error}"
+                )
+
+        if updated:
+            save_stories(stories)
+
+        await asyncio.sleep(15)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
