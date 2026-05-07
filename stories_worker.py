@@ -10,6 +10,7 @@ from telegram import Bot
 from telethon import TelegramClient
 from telethon.tl.functions.stories import SendStoryRequest
 from telethon.tl.types import InputPrivacyValueAllowAll, InputMediaUploadedPhoto
+from storage import get_accounts_dict
 
 load_dotenv()
 
@@ -27,11 +28,7 @@ bot = Bot(token=BOT_TOKEN)
 
 
 def load_accounts():
-    if not os.path.exists(ACCOUNTS_FILE):
-        return {}
-
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return get_accounts_dict()
 
 
 def load_stories():
