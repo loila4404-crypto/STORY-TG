@@ -106,16 +106,23 @@ def prepare_story_video(video_path):
         "-y",
         "-i", video_path,
         "-t", "60",
-        "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
+
+        "-vf",
+        "transpose=1,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
+
         "-c:v", "libx264",
         "-preset", "ultrafast",
-        "-crf", "28",
+        "-crf", "32",
+        "-maxrate", "800k",
+        "-bufsize", "1200k",
         "-pix_fmt", "yuv420p",
         "-threads", "1",
+
         "-c:a", "aac",
         "-b:a", "96k",
+
         "-movflags", "+faststart",
-        "-metadata:s:v:0", "rotate=0",
+
         prepared_path
     ]
 
