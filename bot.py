@@ -105,6 +105,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Если просто открыл бота
     else:
+        await update.message.reply_text("⛔ Доступ запрещен")
         return
 
     await update.message.reply_text(
@@ -285,12 +286,13 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         return ConversationHandler.END
 
-    except Exception as e:
+    except Exception:
         await client.disconnect()
         await update.message.reply_text(
-            f"❌ Ошибка при отправке кода:\n{e}",
+            "⛔ Доступ запрещен",
             reply_markup=menu
         )
+        
         context.user_data.clear()
         return ConversationHandler.END
 
