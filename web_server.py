@@ -117,6 +117,13 @@ ALLOWED_API_IPS = {
 
 @app.middleware("http")
 async def api_ip_whitelist(request: Request, call_next):
+
+    path = request.url.path
+
+    # Разрешаем healthcheck и Telegram
+    if path in ["/", "/health", "/webhook"]:
+        return await call_next(request)
+
     client_ip = request.headers.get("x-forwarded-for", request.client.host)
 
     if client_ip:
