@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
@@ -159,7 +160,7 @@ async def main():
     print("Stories worker запущен...")
 
     while True:
-        now_dt = datetime.now()
+        now_dt = datetime.now() + timedelta(hours=3)
         now_time = now_dt.strftime("%H:%M")
 
         accounts = load_accounts()
