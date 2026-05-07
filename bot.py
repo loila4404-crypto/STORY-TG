@@ -167,7 +167,7 @@ async def add_account_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "➕ Введи название аккаунта.\n\n"
         "Например:\n"
-        "@SofiVip\n"
+        "SofiVip\n"
     )
     return ACCOUNT_NAME
 
