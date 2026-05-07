@@ -105,12 +105,17 @@ def prepare_story_video(video_path):
         "ffmpeg",
         "-y",
         "-i", video_path,
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+        "-t", "60",
+        "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
         "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
+        "-preset", "ultrafast",
+        "-crf", "28",
+        "-pix_fmt", "yuv420p",
+        "-threads", "1",
         "-c:a", "aac",
+        "-b:a", "96k",
         "-movflags", "+faststart",
+        "-metadata:s:v:0", "rotate=0",
         prepared_path
     ]
 
@@ -119,7 +124,7 @@ def prepare_story_video(video_path):
             command,
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=180
         )
 
         if result.returncode != 0:
