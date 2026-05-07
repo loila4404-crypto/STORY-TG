@@ -613,14 +613,38 @@ async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     accounts = load_accounts()
 
-    my_accounts = [
-        (name, info)
-        for name, info in accounts.items()
-        if info.get("owner_id") == user_id
-    ]
+    my_accounts = []
+
+    for name, info in accounts.items():
+        if info.get("owner_id") != user_id:
+            continue
+
+        session_path = info.get("session", "").replace(".session", "")
+
+        is_active = False
+
+        try:
+            client = TelegramClient(
+                session_path,
+                API_ID,
+                API_HASH
+            )
+
+            await client.connect()
+            is_active = await client.is_user_authorized()
+            await client.disconnect()
+
+        except Exception:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+        if is_active:
+            my_accounts.append((name, info))
 
     if not my_accounts:
-        await update.message.reply_text("У тебя пока нет подключенных аккаунтов.")
+        await update.message.reply_text("У тебя пока нет активных подключенных аккаунтов.")
         return ConversationHandler.END
 
     context.user_data["story_accounts"] = my_accounts
