@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import subprocess
 from datetime import datetime
 from datetime import datetime, timedelta
 
@@ -92,6 +93,36 @@ def prepare_story_image(photo_path):
     return prepared_path
 
 
+def prepare_story_video(video_path):
+    base_name = os.path.basename(video_path)
+
+    prepared_path = os.path.join(
+        PREPARED_DIR,
+        f"prepared_{base_name}"
+    )
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i", video_path,
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-movflags", "+faststart",
+        prepared_path
+    ]
+
+    subprocess.run(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    return prepared_path
+
+
 async def publish_story(story, accounts):
     account_name = story["account_name"]
 
@@ -114,20 +145,21 @@ async def publish_story(story, accounts):
 
         file_path = story.get("file_path") or story.get("photo_path")
         media_type = story.get("media_type", "photo")
+        caption = story.get("caption", "")
 
         if not file_path or not os.path.exists(file_path):
             print(f"Файл не найден: {file_path}")
             await client.disconnect()
             return False, "Файл не найден"
 
-        caption = story.get("caption", "")
-
         print(f"Публикую сторис: {account_name}")
 
         if media_type == "video" or file_path.lower().endswith((".mp4", ".mov", ".m4v")):
             print(f"Готовлю видео: {file_path}")
 
-            file = await client.upload_file(file_path)
+            prepared_path = prepare_story_video(file_path)
+
+            file = await client.upload_file(prepared_path)
 
             media = InputMediaUploadedDocument(
                 file=file,
@@ -146,7 +178,9 @@ async def publish_story(story, accounts):
             print(f"Готовлю фото: {file_path}")
 
             prepared_path = prepare_story_image(file_path)
+
             file = await client.upload_file(prepared_path)
+
             media = InputMediaUploadedPhoto(file=file)
 
         await client(
