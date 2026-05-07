@@ -14,11 +14,15 @@ def get_accounts():
 
 def get_accounts_dict():
     accounts = get_accounts()
+
     return {
         item["account_name"]: {
             "owner_id": item["owner_id"],
             "display_name": item.get("display_name"),
             "phone": item.get("phone"),
+            "telegram_id": item.get("telegram_id"),
+            "username": item.get("username"),
+            "first_name": item.get("first_name"),
             "session": item.get("session_path"),
         }
         for item in accounts
@@ -39,3 +43,4 @@ def save_account(account_name, data):
 
 
 def delete_account(account_name):
+    supabase.table("accounts").delete().eq("account_name", account_name).execute()
