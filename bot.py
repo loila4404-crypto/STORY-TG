@@ -296,18 +296,48 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     accounts = load_accounts()
 
-    for existing_name, existing_info in accounts.items():
+    accounts_changed = False
+
+    for existing_name, existing_info in list(accounts.items()):
         if (
             existing_info.get("owner_id") == user_id
             and existing_info.get("phone") == phone_number
         ):
-            await update.message.reply_text(
-                f"⚠️ Этот номер уже подключен.\n\n"
-                f"Аккаунт: {existing_info.get('display_name', existing_name)}",
-                reply_markup=menu
-            )
-            context.user_data.clear()
-            return ConversationHandler.END
+            old_session_path = existing_info.get("session", "").replace(".session", "")
+
+            is_active = False
+
+            try:
+                old_client = TelegramClient(
+                    old_session_path,
+                    API_ID,
+                    API_HASH
+                )
+
+                await old_client.connect()
+                is_active = await old_client.is_user_authorized()
+                await old_client.disconnect()
+
+            except Exception:
+                try:
+                    await old_client.disconnect()
+                except Exception:
+                    pass
+
+            if is_active:
+                await update.message.reply_text(
+                    f"⚠️ Этот номер уже подключен.\n\n"
+                    f"Аккаунт: {existing_info.get('display_name', existing_name)}",
+                    reply_markup=menu
+                )
+                context.user_data.clear()
+                return ConversationHandler.END
+
+            del accounts[existing_name]
+            accounts_changed = True
+
+    if accounts_changed:
+        save_accounts(accounts)
 
     account_name = context.user_data["account_name"]
     session_path = os.path.join(SESSIONS_DIR, account_name)
