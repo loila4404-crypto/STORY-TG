@@ -526,7 +526,7 @@ async def story_account_callback(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data["story_account_name"] = account_name
     context.user_data["story_display_name"] = info.get("display_name", account_name)
 
-    await query.message.reply_text("Теперь отправь фото или видеодля сторис.")
+    await query.message.reply_text("Теперь отправь фото или видео для сторис.")
 
     return STORY_PHOTO
 
