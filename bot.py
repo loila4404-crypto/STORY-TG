@@ -243,8 +243,39 @@ async def account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     final_name = f"{user_id}_{name}"
 
     if final_name in accounts:
-        await update.message.reply_text("Такое название уже есть. Введи другое.")
-        return ACCOUNT_NAME
+
+        old_info = accounts[final_name]
+        session_path = old_info.get("session", "").replace(".session", "")
+
+        is_active = False
+
+        try:
+            client = TelegramClient(
+                session_path,
+                API_ID,
+                API_HASH
+            )
+
+            await client.connect()
+
+            is_active = await client.is_user_authorized()
+
+            await client.disconnect()
+
+        except Exception:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+        if is_active:
+            await update.message.reply_text(
+                "Такое название уже есть. Введи другое."
+            )
+            return ACCOUNT_NAME
+
+        del accounts[final_name]
+        save_accounts(accounts)
 
     context.user_data["account_name"] = final_name
     context.user_data["display_name"] = name
@@ -254,6 +285,7 @@ async def account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Пример:\n"
         "+380636062796"
     )
+
     return PHONE
 
 
