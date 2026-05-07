@@ -431,23 +431,53 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     me = await client.get_me()
     accounts = load_accounts()
 
-    for existing_name, existing_info in accounts.items():
+    accounts_changed = False
+
+    for existing_name, existing_info in list(accounts.items()):
         if (
             existing_info.get("owner_id") == user_id
             and existing_info.get("telegram_id") == me.id
         ):
-            username_text = f"@{me.username}" if me.username else "нет username"
+            old_session_path = existing_info.get("session", "").replace(".session", "")
 
-            await update.message.reply_text(
-                f"⚠️ Этот Telegram уже добавлен.\n\n"
-                f"Название: {existing_info.get('display_name', existing_name)}\n"
-                f"Username: {username_text}",
-                reply_markup=menu
-            )
+            is_active = False
 
-            await client.disconnect()
-            context.user_data.clear()
-            return ConversationHandler.END
+            try:
+                old_client = TelegramClient(
+                    old_session_path,
+                    API_ID,
+                    API_HASH
+                )
+
+                await old_client.connect()
+                is_active = await old_client.is_user_authorized()
+                await old_client.disconnect()
+
+            except Exception:
+                try:
+                    await old_client.disconnect()
+                except Exception:
+                    pass
+
+            if is_active:
+                username_text = f"@{me.username}" if me.username else "нет username"
+
+                await update.message.reply_text(
+                    f"⚠️ Этот Telegram уже добавлен.\n\n"
+                    f"Название: {existing_info.get('display_name', existing_name)}\n"
+                    f"Username: {username_text}",
+                    reply_markup=menu
+                )
+
+                await client.disconnect()
+                context.user_data.clear()
+                return ConversationHandler.END
+
+            del accounts[existing_name]
+            accounts_changed = True
+
+    if accounts_changed:
+        save_accounts(accounts)
 
     account_data = {
         "owner_id": user_id,
@@ -458,6 +488,7 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "first_name": me.first_name,
         "session": f"sessions/{account_name}.session"
     }
+
     save_account(account_name, account_data)
 
     username = f"@{me.username}" if me.username else "нет username"
@@ -480,24 +511,56 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     accounts = load_accounts()
 
-    my_accounts = [
-        (name, info) for name, info in accounts.items()
-        if info.get("owner_id") == user_id
-    ]
+    my_accounts = []
+
+    for name, info in accounts.items():
+
+        if info.get("owner_id") != user_id:
+            continue
+
+        session_path = info.get("session", "").replace(".session", "")
+
+        is_active = False
+
+        try:
+            client = TelegramClient(
+                session_path,
+                API_ID,
+                API_HASH
+            )
+
+            await client.connect()
+
+            is_active = await client.is_user_authorized()
+
+            await client.disconnect()
+
+        except Exception:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+        if is_active:
+            my_accounts.append((name, info))
 
     if not my_accounts:
-        await update.message.reply_text("У тебя пока нет аккаунтов для удаления.")
+        await update.message.reply_text(
+            "У тебя пока нет активных аккаунтов для удаления."
+        )
         return ConversationHandler.END
 
     context.user_data["delete_accounts"] = my_accounts
 
     msg = "🗑 Выбери аккаунт для удаления:\n\n"
+
     for i, (name, info) in enumerate(my_accounts, start=1):
         msg += f"{i}. {info.get('display_name', name)}\n"
 
     msg += "\nВведи номер аккаунта."
 
     await update.message.reply_text(msg)
+
     return DELETE_ACCOUNT
 
 
