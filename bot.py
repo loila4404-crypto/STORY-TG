@@ -122,7 +122,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
-    if text == "🔗 Ссылка доступа":
+    if "Ссылка доступа" in text:
         bot_username = context.bot.username
         invite_link = f"https://t.me/{bot_username}?start=mysecretcode"
 
