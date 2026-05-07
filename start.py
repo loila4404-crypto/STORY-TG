@@ -8,7 +8,6 @@ os.environ["PYTHONUNBUFFERED"] = "1"
 processes = [
     ["bot", [sys.executable, "-u", "bot.py"]],
     ["worker", [sys.executable, "-u", "stories_worker.py"]],
-    ["web", [sys.executable, "-u", "-m", "uvicorn", "web_server:app", "--host", "0.0.0.0", "--port", "10000"]],
 ]
 
 running = {}
