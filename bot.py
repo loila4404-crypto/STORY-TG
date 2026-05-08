@@ -7,7 +7,7 @@ from datetime import datetime
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from storage import get_accounts_dict, save_account, delete_account
+from storage import get_accounts_dict, save_account, delete_account, save_accounts
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
 from telegram.ext import (
@@ -21,6 +21,11 @@ from telegram.ext import (
 )
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+
+from telethon.errors import (
+    SessionPasswordNeededError,
+    PhoneCodeInvalidError
+)
 
 load_dotenv()
 
@@ -140,11 +145,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if info.get("owner_id") != user_id:
                 continue
 
-            session_path = info.get("session", "").replace(".session", "")
+            session_string = info.get("session_string")
+
+            if not session_string:
+                continue
+
+            client = None
 
             try:
                 client = TelegramClient(
-                    session_path,
+                    StringSession(session_string),
                     API_ID,
                     API_HASH
                 )
@@ -158,7 +168,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             except Exception:
                 try:
-                    await client.disconnect()
+                    if client:
+                        await client.disconnect()
                 except Exception:
                     pass
 
@@ -245,26 +256,27 @@ async def account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if final_name in accounts:
 
         old_info = accounts[final_name]
-        session_path = old_info.get("session", "").replace(".session", "")
+        old_session_string = old_info.get("session_string")
 
         is_active = False
+        client = None
 
         try:
-            client = TelegramClient(
-                session_path,
-                API_ID,
-                API_HASH
-            )
+            if old_session_string:
+                client = TelegramClient(
+                    StringSession(old_session_string),
+                    API_ID,
+                    API_HASH
+                )
 
-            await client.connect()
-
-            is_active = await client.is_user_authorized()
-
-            await client.disconnect()
+                await client.connect()
+                is_active = await client.is_user_authorized()
+                await client.disconnect()
 
         except Exception:
             try:
-                await client.disconnect()
+                if client:
+                    await client.disconnect()
             except Exception:
                 pass
 
@@ -608,13 +620,17 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
         if info.get("owner_id") != user_id:
             continue
 
-        session_path = info.get("session", "").replace(".session", "")
+        session_string = info.get("session_string")
+
+        if not session_string:
+            continue
 
         is_active = False
+        client = None
 
         try:
             client = TelegramClient(
-                session_path,
+                StringSession(session_string),
                 API_ID,
                 API_HASH
             )
@@ -627,7 +643,8 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
 
         except Exception:
             try:
-                await client.disconnect()
+                if client:
+                    await client.disconnect()
             except Exception:
                 pass
 
@@ -670,28 +687,13 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
 
     account_name, info = my_accounts[index]
     display_name = info.get("display_name", account_name)
-    session_file = info.get("session")
 
-    accounts = load_accounts()
-
-    if account_name in accounts:
-        delete_account(account_name)
-
-    deleted_files = []
-
-    if session_file and os.path.exists(session_file):
-        os.remove(session_file)
-        deleted_files.append(session_file)
-
-    session_journal = f"{session_file}-journal" if session_file else None
-    if session_journal and os.path.exists(session_journal):
-        os.remove(session_journal)
-        deleted_files.append(session_journal)
+    delete_account(account_name)
 
     await update.message.reply_text(
         f"✅ Аккаунт удалён.\n\n"
         f"Аккаунт: {display_name}\n"
-        f"Сессия: {'удалена' if deleted_files else 'файл сессии не найден'}",
+        f"Сессия: удалена из Supabase",
         reply_markup=menu
     )
 
@@ -709,24 +711,31 @@ async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if info.get("owner_id") != user_id:
             continue
 
-        session_path = info.get("session", "").replace(".session", "")
+        session_string = info.get("session_string")
+
+        if not session_string:
+            continue
 
         is_active = False
+        client = None
 
         try:
             client = TelegramClient(
-                session_path,
+                StringSession(session_string),
                 API_ID,
                 API_HASH
             )
 
             await client.connect()
+
             is_active = await client.is_user_authorized()
+
             await client.disconnect()
 
         except Exception:
             try:
-                await client.disconnect()
+                if client:
+                    await client.disconnect()
             except Exception:
                 pass
 
@@ -734,7 +743,9 @@ async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             my_accounts.append((name, info))
 
     if not my_accounts:
-        await update.message.reply_text("У тебя пока нет активных подключенных аккаунтов.")
+        await update.message.reply_text(
+            "У тебя пока нет активных подключенных аккаунтов."
+        )
         return ConversationHandler.END
 
     context.user_data["story_accounts"] = my_accounts
