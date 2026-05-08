@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from PIL import Image, ImageOps
 from telegram import Bot
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.functions.stories import SendStoryRequest
 from telethon.tl.types import (
     InputPrivacyValueAllowAll,
@@ -155,9 +156,18 @@ async def publish_story(story, accounts):
         return False, "Аккаунт не найден"
 
     info = accounts[account_name]
-    session_path = info["session"].replace(".session", "")
 
-    client = TelegramClient(session_path, API_ID, API_HASH)
+    session_string = info.get("session_string")
+
+    if not session_string:
+        print(f"У аккаунта {account_name} нет session_string")
+        return False, "Аккаунт нужно переподключить"
+
+    client = TelegramClient(
+        StringSession(session_string),
+        API_ID,
+        API_HASH
+    )
 
     try:
         await client.connect()
