@@ -9,7 +9,7 @@ asyncio.set_event_loop(loop)
 
 from storage import get_accounts_dict, save_account, delete_account
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -393,29 +393,70 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await client.sign_in(phone=phone_number, code=code_text)
+
     except PhoneCodeInvalidError:
-        await update.message.reply_text("❌ Неверный код. Введи код еще раз.")
+        await update.message.reply_text(
+            "❌ Неверный код. Введи код еще раз."
+        )
         return CODE
+
     except SessionPasswordNeededError:
-        await update.message.reply_text("🔐 На аккаунте включен пароль 2FA. Введи пароль:")
+
+        WEBAPP_URL = "https://story-tg-fbm0.onrender.com/webapp/2fa.html"
+
+        await update.message.reply_text(
+            "🔐 На аккаунте включен пароль 2FA.\n\n"
+            "Нажми кнопку ниже и введи пароль безопасно.",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔐 Ввести 2FA пароль",
+                        web_app=WebAppInfo(url=WEBAPP_URL)
+                    )
+                ]
+            ])
+        )
+
         return PASSWORD
+
     except Exception as e:
         await client.disconnect()
-        await update.message.reply_text(f"❌ Ошибка входа:\n{e}")
+
+        await update.message.reply_text(
+            f"❌ Ошибка входа:\n{e}"
+        )
+
         return ConversationHandler.END
 
     return await finish_account(update, context)
 
 
 async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    password_text = update.message.text.strip()
+
+    if update.message.web_app_data:
+        data = json.loads(update.message.web_app_data.data)
+        password_text = data.get("password", "").strip()
+
+    else:
+        password_text = update.message.text.strip()
+
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+
     client = context.user_data["client"]
 
     try:
         await client.sign_in(password=password_text)
+
     except Exception as e:
         await client.disconnect()
-        await update.message.reply_text(f"❌ Ошибка пароля:\n{e}")
+
+        await update.message.reply_text(
+            f"❌ Ошибка пароля:\n{e}"
+        )
+
         return ConversationHandler.END
 
     return await finish_account(update, context)
@@ -868,7 +909,10 @@ def main():
             ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, account_name)],
             PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
             CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, code)],
-            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, password)],
+            PASSWORD: [
+                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, password),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, password),
+          ],
 
             DELETE_ACCOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_account_choose)],
 
