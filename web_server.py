@@ -6,7 +6,6 @@ from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-
 from fastapi import Request, HTTPException
 
 app = FastAPI()
@@ -17,13 +16,20 @@ ALLOWED_API_IPS = {
     if ip.strip()
 }
 
+
 @app.middleware("http")
 async def api_ip_whitelist(request: Request, call_next):
-
     path = request.url.path
 
-    # Разрешаем healthcheck и Telegram
-    if path in ["/", "/health", "/webhook"]:
+    # Разрешаем healthcheck, главную, webapp и Telegram webhook
+    if (
+        path in ["/", "/health", "/webhook", "/stories"]
+        or path.startswith("/webapp")
+    ):
+        return await call_next(request)
+
+    # Если whitelist пустой — не блокируем запросы
+    if not ALLOWED_API_IPS:
         return await call_next(request)
 
     client_ip = request.headers.get("x-forwarded-for", request.client.host)
@@ -35,6 +41,7 @@ async def api_ip_whitelist(request: Request, call_next):
         raise HTTPException(status_code=403, detail="⛔ Доступ запрещен")
 
     return await call_next(request)
+
 
 app.mount("/webapp", StaticFiles(directory="webapp"), name="webapp")
 
@@ -71,6 +78,16 @@ async def root():
     return {"status": "ok"}
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.head("/health")
+async def health_head():
+    return
+
+
 @app.get("/stories")
 async def stories():
     return FileResponse("webapp/index.html")
@@ -89,15 +106,6 @@ async def api_accounts():
         })
 
     return result
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
-
-@app.head("/health")
-async def health_head():
-    return
 
 
 @app.post("/api/story")
@@ -125,9 +133,9 @@ async def api_story(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(photo.file, buffer)
 
-    stories = load_stories()
+    stories_queue = load_stories()
 
-    stories.append({
+    stories_queue.append({
         "owner_id": accounts[account_name].get("owner_id"),
         "account_name": account_name,
         "display_name": accounts[account_name].get(
@@ -140,9 +148,21 @@ async def api_story(
         "status": "scheduled"
     })
 
-    save_stories(stories)
+    save_stories(stories_queue)
 
     return {
         "success": True,
         "message": "Сторис поставлена в очередь"
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 10000))
+
+    uvicorn.run(
+        "web_server:app",
+        host="0.0.0.0",
+        port=port
+    )
