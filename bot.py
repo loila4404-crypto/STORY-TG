@@ -433,6 +433,11 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+
     if update.message.web_app_data:
         data = json.loads(update.message.web_app_data.data)
         password_text = data.get("password", "").strip()
@@ -450,7 +455,13 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await client.sign_in(password=password_text)
 
+        # очищаем пароль из памяти
+        password_text = None
+
     except Exception as e:
+
+        password_text = None
+
         await client.disconnect()
 
         await update.message.reply_text(
@@ -458,6 +469,8 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         return ConversationHandler.END
+
+    password_text = None
 
     return await finish_account(update, context)
 
