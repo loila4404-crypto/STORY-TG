@@ -6,3 +6,4 @@ uvicorn
 python-multipart
 pillow
 supabase
+psycopg2-binary
