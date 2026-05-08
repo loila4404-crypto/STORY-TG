@@ -19,28 +19,53 @@ ALLOWED_API_IPS = {
 
 @app.middleware("http")
 async def api_ip_whitelist(request: Request, call_next):
+
     path = request.url.path
 
-    # Разрешаем healthcheck, главную, webapp и Telegram webhook
+    # Разрешаем:
+    # - healthcheck
+    # - главную
+    # - Telegram webhook
+    # - webapp
+    # - favicon
+    # - stories endpoint
+
     if (
-        path in ["/", "/health", "/webhook", "/stories"]
+        path in [
+            "/",
+            "/health",
+            "/webhook",
+            "/stories",
+            "/favicon.ico"
+        ]
         or path.startswith("/webapp")
     ):
         return await call_next(request)
 
-    # Если whitelist пустой — не блокируем запросы
+    # Если whitelist пуст — ничего не блокируем
     if not ALLOWED_API_IPS:
         return await call_next(request)
 
-    client_ip = request.headers.get("x-forwarded-for", request.client.host)
+    client_ip = request.headers.get(
+        "x-forwarded-for",
+        request.client.host
+    )
 
     if client_ip:
         client_ip = client_ip.split(",")[0].strip()
 
     if client_ip not in ALLOWED_API_IPS:
-        raise HTTPException(status_code=403, detail="⛔ Доступ запрещен")
+        raise HTTPException(
+            status_code=403,
+            detail="⛔ Доступ запрещен"
+        )
 
     return await call_next(request)
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return JSONResponse(content={})
 
 
 app.mount("/webapp", StaticFiles(directory="webapp"), name="webapp")
