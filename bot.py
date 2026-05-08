@@ -888,6 +888,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Бот Stories запущен...")
+    print("STARTING POLLING...", flush=True)
     app.run_polling(close_loop=False)
 
 
