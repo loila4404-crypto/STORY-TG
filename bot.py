@@ -20,7 +20,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
+from telethon.sessions import StringSession
 
 load_dotenv()
 
@@ -303,24 +303,27 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             existing_info.get("owner_id") == user_id
             and existing_info.get("phone") == phone_number
         ):
-            old_session_path = existing_info.get("session", "").replace(".session", "")
+            old_session_string = existing_info.get("session_string")
 
             is_active = False
+            old_client = None
 
             try:
-                old_client = TelegramClient(
-                    old_session_path,
-                    API_ID,
-                    API_HASH
-                )
+                if old_session_string:
+                    old_client = TelegramClient(
+                        StringSession(old_session_string),
+                        API_ID,
+                        API_HASH
+                    )
 
-                await old_client.connect()
-                is_active = await old_client.is_user_authorized()
-                await old_client.disconnect()
+                    await old_client.connect()
+                    is_active = await old_client.is_user_authorized()
+                    await old_client.disconnect()
 
             except Exception:
                 try:
-                    await old_client.disconnect()
+                    if old_client:
+                        await old_client.disconnect()
                 except Exception:
                     pass
 
@@ -339,10 +342,7 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if accounts_changed:
         save_accounts(accounts)
 
-    account_name = context.user_data["account_name"]
-    session_path = os.path.join(SESSIONS_DIR, account_name)
-
-    client = TelegramClient(session_path, API_ID, API_HASH)
+    client = TelegramClient(StringSession(), API_ID, API_HASH)
 
     try:
         await client.connect()
@@ -523,24 +523,27 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
             existing_info.get("owner_id") == user_id
             and existing_info.get("telegram_id") == me.id
         ):
-            old_session_path = existing_info.get("session", "").replace(".session", "")
+            old_session_string = existing_info.get("session_string")
 
             is_active = False
+            old_client = None
 
             try:
-                old_client = TelegramClient(
-                    old_session_path,
-                    API_ID,
-                    API_HASH
-                )
+                if old_session_string:
+                    old_client = TelegramClient(
+                        StringSession(old_session_string),
+                        API_ID,
+                        API_HASH
+                    )
 
-                await old_client.connect()
-                is_active = await old_client.is_user_authorized()
-                await old_client.disconnect()
+                    await old_client.connect()
+                    is_active = await old_client.is_user_authorized()
+                    await old_client.disconnect()
 
             except Exception:
                 try:
-                    await old_client.disconnect()
+                    if old_client:
+                        await old_client.disconnect()
                 except Exception:
                     pass
 
@@ -564,6 +567,8 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if accounts_changed:
         save_accounts(accounts)
 
+    session_string = client.session.save()
+
     account_data = {
         "owner_id": user_id,
         "display_name": display_name,
@@ -571,7 +576,7 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "telegram_id": me.id,
         "username": me.username,
         "first_name": me.first_name,
-        "session": f"sessions/{account_name}.session"
+        "session_string": session_string
     }
 
     save_account(account_name, account_data)
