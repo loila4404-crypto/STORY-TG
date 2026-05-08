@@ -59,11 +59,6 @@ def load_accounts():
     return get_accounts_dict()
 
 
-def save_accounts(data):
-    with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
 def load_stories_queue():
     if not os.path.exists(STORIES_QUEUE_FILE):
         return []
