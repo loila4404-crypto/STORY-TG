@@ -9,7 +9,7 @@ asyncio.set_event_loop(loop)
 
 from storage import get_accounts_dict, save_account, delete_account
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -407,14 +407,18 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🔐 На аккаунте включен пароль 2FA.\n\n"
             "Нажми кнопку ниже и введи пароль безопасно.",
-            reply_markup=InlineKeyboardMarkup([
+            reply_markup=ReplyKeyboardMarkup(
                 [
-                    InlineKeyboardButton(
-                        "🔐 Ввести 2FA пароль",
-                        web_app=WebAppInfo(url=WEBAPP_URL)
-                    )
-                ]
-            ])
+                    [
+                        KeyboardButton(
+                            "🔐 Ввести 2FA пароль",
+                            web_app=WebAppInfo(url=WEBAPP_URL)
+                        )
+                    ]
+                ],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
         )
 
         return PASSWORD
