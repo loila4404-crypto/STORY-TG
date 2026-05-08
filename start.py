@@ -6,9 +6,22 @@ import os
 os.environ["PYTHONUNBUFFERED"] = "1"
 
 print("Waiting before start...", flush=True)
-time.sleep(15)
+time.sleep(5)
+
+port = os.environ.get("PORT", "10000")
 
 processes = [
+    ["web", [
+        sys.executable,
+        "-u",
+        "-m",
+        "uvicorn",
+        "web_server:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        port
+    ]],
     ["bot", [sys.executable, "-u", "bot.py"]],
     ["worker", [sys.executable, "-u", "stories_worker.py"]],
 ]
