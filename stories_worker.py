@@ -169,10 +169,30 @@ async def publish_story(story, accounts):
         print(f"У аккаунта {account_name} нет session_string", flush=True)
         return False, "Аккаунт нужно переподключить"
 
+    proxy = None
+
+    if info.get("proxy_host") and info.get("proxy_port"):
+        proxy = (
+            "socks5",
+            info.get("proxy_host"),
+            int(info.get("proxy_port")),
+            True,
+            info.get("proxy_user"),
+            info.get("proxy_pass")
+        )
+
+        print(
+            f"Использую proxy для {account_name}: {info.get('proxy_host')}:{info.get('proxy_port')}",
+            flush=True
+        )
+    else:
+        print(f"Proxy для {account_name} не указан. Использую IP сервера.", flush=True)
+
     client = TelegramClient(
         StringSession(session_string),
         API_ID,
-        API_HASH
+        API_HASH,
+        proxy=proxy
     )
 
     temp_file_path = None
