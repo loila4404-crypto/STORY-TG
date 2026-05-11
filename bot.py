@@ -949,6 +949,7 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "storage_path": context.user_data.get("story_storage_path"),
         "media_type": context.user_data.get("story_media_type", "photo"),
         "caption": context.user_data["story_caption"],
+        "publish_date": context.user_data.get("story_publish_date"),
         "publish_time": publish_time,
         "status": "scheduled",
     }
@@ -958,6 +959,7 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Сторис поставлена в очередь!\n\n"
         f"Аккаунт: {story['display_name']}\n"
+        f"Дата: {story['publish_date']}\n"
         f"Время: {publish_time}\n"
         f"Подпись: {story['caption']}",
         reply_markup=menu
