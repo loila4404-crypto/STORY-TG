@@ -87,9 +87,20 @@ def save_account(account_name, account_data):
                     username,
                     first_name,
                     session_string,
+
+                    proxy_host,
+                    proxy_port,
+                    proxy_user,
+                    proxy_pass,
+
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    NOW()
+                )
+
                 ON CONFLICT (account_name)
                 DO UPDATE SET
                     owner_id = EXCLUDED.owner_id,
@@ -99,6 +110,12 @@ def save_account(account_name, account_data):
                     username = EXCLUDED.username,
                     first_name = EXCLUDED.first_name,
                     session_string = EXCLUDED.session_string,
+
+                    proxy_host = EXCLUDED.proxy_host,
+                    proxy_port = EXCLUDED.proxy_port,
+                    proxy_user = EXCLUDED.proxy_user,
+                    proxy_pass = EXCLUDED.proxy_pass,
+
                     updated_at = NOW()
                 """,
                 (
@@ -110,6 +127,11 @@ def save_account(account_name, account_data):
                     account_data.get("username"),
                     account_data.get("first_name"),
                     account_data.get("session_string"),
+
+                    account_data.get("proxy_host"),
+                    account_data.get("proxy_port"),
+                    account_data.get("proxy_user"),
+                    account_data.get("proxy_pass"),
                 )
             )
 
@@ -244,3 +266,35 @@ def delete_published_stories():
             """)
 
         conn.commit()
+
+
+def get_next_proxy():
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT *
+                FROM proxy_pool
+                WHERE is_active = TRUE
+                ORDER BY used_count ASC, id ASC
+                LIMIT 1
+            """)
+
+            proxy = cur.fetchone()
+
+            if not proxy:
+                return None
+
+            cur.execute(
+                """
+                UPDATE proxy_pool
+                SET used_count = used_count + 1
+                WHERE id = %s
+                """,
+                (proxy["id"],)
+            )
+
+        conn.commit()
+
+    return dict(proxy)
