@@ -18,7 +18,13 @@ from telethon.tl.types import (
     InputMediaUploadedDocument,
     DocumentAttributeVideo
 )
-from storage import get_accounts_dict
+from storage import (
+    get_accounts_dict,
+    get_all_stories,
+    mark_story_published,
+    mark_story_error,
+    delete_published_stories
+)
 
 load_dotenv()
 
@@ -276,19 +282,18 @@ async def main():
             now_time = now_dt.strftime("%H:%M")
 
             accounts = load_accounts()
-            stories = load_stories()
-
-            updated = False
+            stories = get_all_stories()
 
             print(f"Проверка очереди: {now_time}", flush=True)
+            print(f"Сторис в Supabase очереди: {len(stories)}", flush=True)
 
             for story in stories:
-                if story.get("status") != "scheduled":
-                    continue
+                story_id = story.get("id")
 
                 publish_time = story.get("publish_time")
 
                 if not publish_time:
+                    mark_story_error(story_id, "Нет времени публикации")
                     continue
 
                 try:
@@ -297,10 +302,9 @@ async def main():
                         month=now_dt.month,
                         day=now_dt.day
                     )
+
                 except ValueError:
-                    story["status"] = "error"
-                    story["error_text"] = "Неверный формат времени"
-                    updated = True
+                    mark_story_error(story_id, "Неверный формат времени")
                     continue
 
                 if publish_dt > now_dt:
@@ -320,18 +324,8 @@ async def main():
                 published_time = datetime.now().strftime("%H:%M")
 
                 if success:
-                    story["status"] = "published"
-                    story["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    updated = True
-
-                    file_path = story.get("file_path") or story.get("photo_path")
-
-                    if file_path and os.path.exists(file_path):
-                        try:
-                            os.remove(file_path)
-                            print(f"Файл удалён после публикации: {file_path}", flush=True)
-                        except Exception as e:
-                            print(f"Не удалось удалить файл {file_path}: {e}", flush=True)
+                    mark_story_published(story_id)
+                    delete_published_stories()
 
                     await notify_owner(
                         story,
@@ -342,10 +336,7 @@ async def main():
                     )
 
                 else:
-                    story["status"] = "error"
-                    story["error_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    story["error_text"] = error_text
-                    updated = True
+                    mark_story_error(story_id, error_text)
 
                     raw_error = str(error_text).lower()
                     nice_error = "Неизвестная ошибка"
@@ -371,14 +362,6 @@ async def main():
                         f"Аккаунт: {display_name}\n"
                         f"Причина: {nice_error}"
                     )
-
-            if updated:
-                stories = [
-                    story for story in stories
-                    if story.get("status") != "published"
-                ]
-
-                save_stories(stories)
 
         except Exception as e:
             print(f"WORKER GLOBAL ERROR: {e}", flush=True)
