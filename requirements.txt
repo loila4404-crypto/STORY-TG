@@ -7,4 +7,5 @@ python-multipart
 pillow
 supabase
 psycopg2-binary
-PySocks==1.7.1
+python-socks
+PySocks
