@@ -2,7 +2,7 @@ import json
 import os
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from supabase_files import upload_story_file
 
 loop = asyncio.new_event_loop()
@@ -912,6 +912,59 @@ async def story_caption(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "⏰ Теперь введи время публикации.\n\n"
+    )
+
+    return STORY_TIME
+
+
+async def story_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    raw_date = update.message.text.strip().lower()
+
+    now = datetime.now() + timedelta(hours=3)
+
+    if raw_date in ["сегодня", "today"]:
+        publish_date = now.strftime("%Y-%m-%d")
+
+    elif raw_date in ["завтра", "tomorrow"]:
+        publish_date = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    else:
+        cleaned = re.sub(r"[^\d]", "", raw_date)
+
+        if len(cleaned) != 4:
+            await update.message.reply_text(
+                "❌ Неверная дата.\n\n"
+                "Примеры:\n"
+                "12.05\n"
+                "12 05\n"
+                "12/05\n"
+                "завтра"
+            )
+            return STORY_DATE
+
+        day = int(cleaned[:2])
+        month = int(cleaned[2:])
+
+        try:
+            dt = datetime(now.year, month, day)
+
+            if dt.date() < now.date():
+                dt = datetime(now.year + 1, month, day)
+
+            publish_date = dt.strftime("%Y-%m-%d")
+
+        except Exception:
+            await update.message.reply_text("❌ Неверная дата.")
+            return STORY_DATE
+
+    context.user_data["story_publish_date"] = publish_date
+
+    await update.message.reply_text(
+        "⏰ Теперь введи время публикации\n\n"
+        "Примеры:\n"
+        "16:30\n"
+        "1630\n"
+        "16 30"
     )
 
     return STORY_TIME
