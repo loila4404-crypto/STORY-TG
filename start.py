@@ -22,8 +22,12 @@ processes = [
         "--port",
         port
     ]],
-    ["bot", [sys.executable, "-u", "bot.py"]],
-    ["worker", [sys.executable, "-u", "stories_worker.py"]],
+
+    ["bot", [
+        sys.executable,
+        "-u",
+        "bot.py"
+    ]],
 ]
 
 running = {}
@@ -39,7 +43,9 @@ while True:
 
         if code is not None:
             print(f"{name} stopped with code {code}. Restarting...", flush=True)
+
             cmd = dict(processes)[name]
+
             running[name] = subprocess.Popen(cmd)
 
     time.sleep(5)
