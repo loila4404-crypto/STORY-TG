@@ -178,10 +178,11 @@ def add_story_to_queue(story):
                     storage_path,
                     media_type,
                     caption,
+                    publish_date,
                     publish_time,
                     status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'scheduled')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'scheduled')
                 RETURNING id
                 """,
                 (
@@ -191,6 +192,7 @@ def add_story_to_queue(story):
                     story.get("storage_path"),
                     story.get("media_type", "photo"),
                     story.get("caption", ""),
+                    story.get("publish_date"),
                     story.get("publish_time"),
                 )
             )
