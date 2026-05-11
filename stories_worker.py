@@ -4,6 +4,7 @@ import os
 import subprocess
 from datetime import datetime
 from datetime import datetime, timedelta
+from supabase_files import download_story_file, delete_story_file
 
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
@@ -152,15 +153,14 @@ async def publish_story(story, accounts):
     account_name = story["account_name"]
 
     if account_name not in accounts:
-        print(f"Аккаунт {account_name} не найден")
+        print(f"Аккаунт {account_name} не найден", flush=True)
         return False, "Аккаунт не найден"
 
     info = accounts[account_name]
-
     session_string = info.get("session_string")
 
     if not session_string:
-        print(f"У аккаунта {account_name} нет session_string")
+        print(f"У аккаунта {account_name} нет session_string", flush=True)
         return False, "Аккаунт нужно переподключить"
 
     client = TelegramClient(
@@ -169,30 +169,37 @@ async def publish_story(story, accounts):
         API_HASH
     )
 
+    temp_file_path = None
+
     try:
         await client.connect()
 
         if not await client.is_user_authorized():
-            print(f"{account_name} не авторизован")
+            print(f"{account_name} не авторизован", flush=True)
             await client.disconnect()
             return False, "Сессия не авторизована"
 
+        storage_path = story.get("storage_path") or story.get("story_storage_path")
         file_path = story.get("file_path") or story.get("photo_path")
         media_type = story.get("media_type", "photo")
         caption = story.get("caption", "")
 
+        if storage_path:
+            print(f"Скачиваю файл из Supabase Storage: {storage_path}", flush=True)
+            temp_file_path = download_story_file(storage_path)
+            file_path = temp_file_path
+
         if not file_path or not os.path.exists(file_path):
-            print(f"Файл не найден: {file_path}")
+            print(f"Файл не найден: {file_path}", flush=True)
             await client.disconnect()
             return False, "Файл не найден"
 
-        print(f"Публикую сторис: {account_name}")
+        print(f"Публикую сторис: {account_name}", flush=True)
 
         if media_type == "video" or file_path.lower().endswith((".mp4", ".mov", ".m4v")):
-            print(f"Готовлю видео: {file_path}")
+            print(f"Готовлю видео: {file_path}", flush=True)
 
             prepared_path = prepare_story_video(file_path)
-
             file = await client.upload_file(prepared_path)
 
             media = InputMediaUploadedDocument(
@@ -209,10 +216,9 @@ async def publish_story(story, accounts):
             )
 
         else:
-            print(f"Готовлю фото: {file_path}")
+            print(f"Готовлю фото: {file_path}", flush=True)
 
             prepared_path = prepare_story_image(file_path)
-
             file = await client.upload_file(prepared_path)
 
             media = InputMediaUploadedPhoto(file=file)
@@ -229,17 +235,32 @@ async def publish_story(story, accounts):
             )
         )
 
-        print(f"Сторис опубликована: {account_name}")
+        print(f"Сторис опубликована: {account_name}", flush=True)
+
+        if storage_path:
+            delete_story_file(storage_path)
 
         await client.disconnect()
+
+        try:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+        except Exception:
+            pass
 
         return True, None
 
     except Exception as e:
-        print(f"Ошибка публикации {account_name}: {e}")
+        print(f"Ошибка публикации {account_name}: {e}", flush=True)
 
         try:
             await client.disconnect()
+        except Exception:
+            pass
+
+        try:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
         except Exception:
             pass
 
@@ -247,120 +268,122 @@ async def publish_story(story, accounts):
 
 
 async def main():
-    print("Stories worker запущен...")
+    print("Stories worker запущен...", flush=True)
 
     while True:
-        now_dt = datetime.now() + timedelta(hours=3)
-        now_time = now_dt.strftime("%H:%M")
+        try:
+            now_dt = datetime.now() + timedelta(hours=3)
+            now_time = now_dt.strftime("%H:%M")
 
-        accounts = load_accounts()
-        stories = load_stories()
+            accounts = load_accounts()
+            stories = load_stories()
 
-        updated = False
+            updated = False
 
-        print(f"Проверка очереди: {now_time}")
+            print(f"Проверка очереди: {now_time}", flush=True)
 
-        for story in stories:
-            if story.get("status") != "scheduled":
-                continue
+            for story in stories:
+                if story.get("status") != "scheduled":
+                    continue
 
-            publish_time = story.get("publish_time")
+                publish_time = story.get("publish_time")
 
-            if not publish_time:
-                continue
+                if not publish_time:
+                    continue
 
-            try:
-                publish_dt = datetime.strptime(publish_time, "%H:%M").replace(
-                    year=now_dt.year,
-                    month=now_dt.month,
-                    day=now_dt.day
-                )
-            except ValueError:
-                story["status"] = "error"
-                story["error_text"] = "Неверный формат времени"
-                updated = True
-                continue
+                try:
+                    publish_dt = datetime.strptime(publish_time, "%H:%M").replace(
+                        year=now_dt.year,
+                        month=now_dt.month,
+                        day=now_dt.day
+                    )
+                except ValueError:
+                    story["status"] = "error"
+                    story["error_text"] = "Неверный формат времени"
+                    updated = True
+                    continue
 
-            if publish_dt > now_dt:
-                continue
+                if publish_dt > now_dt:
+                    continue
 
-            print(f"Нашел сторис для публикации: {story.get('display_name')} / {publish_time}")
-
-            success, error_text = await publish_story(story, accounts)
-
-            display_name = story.get("display_name", story.get("account_name"))
-            caption = story.get("caption", "")
-            published_time = datetime.now().strftime("%H:%M")
-
-            if success:
-                story["status"] = "published"
-                story["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                updated = True
-
-                file_path = story.get("file_path") or story.get("photo_path")
-
-                if file_path and os.path.exists(file_path):
-                    try:
-                        os.remove(file_path)
-                        print(f"Файл удалён после публикации: {file_path}")
-                    except Exception as e:
-                        print(f"Не удалось удалить файл {file_path}: {e}")
-
-                await notify_owner(
-                    story,
-                    f"✅ Сторис опубликована\n\n"
-                    f"Аккаунт: {display_name}\n"
-                    f"Время: {published_time}\n"
-                    f"Подпись: {caption}"
+                print(
+                    f"Нашел сторис для публикации: {story.get('display_name')} / {publish_time}",
+                    flush=True
                 )
 
-            else:
-                story["status"] = "error"
-                story["error_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                story["error_text"] = error_text
-                updated = True
+                success, error_text = await publish_story(story, accounts)
 
-                raw_error = str(error_text).lower()
+                await asyncio.sleep(30)
 
-                nice_error = "Неизвестная ошибка"
+                display_name = story.get("display_name", story.get("account_name"))
+                caption = story.get("caption", "")
+                published_time = datetime.now().strftime("%H:%M")
 
-                if "premium account is required" in raw_error:
-                    nice_error = "Требуется Telegram Premium"
+                if success:
+                    story["status"] = "published"
+                    story["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    updated = True
 
-                elif "not authorized" in raw_error or "не авторизован" in raw_error:
-                    nice_error = "Аккаунт не авторизован"
+                    file_path = story.get("file_path") or story.get("photo_path")
 
-                elif "photo not found" in raw_error or "фото не найдено" in raw_error:
-                    nice_error = "Фото не найдено"
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            print(f"Файл удалён после публикации: {file_path}", flush=True)
+                        except Exception as e:
+                            print(f"Не удалось удалить файл {file_path}: {e}", flush=True)
 
-                elif "file not found" in raw_error or "файл не найден" in raw_error:
-                    nice_error = "Файл не найден"
+                    await notify_owner(
+                        story,
+                        f"✅ Сторис опубликована\n\n"
+                        f"Аккаунт: {display_name}\n"
+                        f"Время: {published_time}\n"
+                        f"Подпись: {caption}"
+                    )
 
-                elif "stories_too_much" in raw_error:
-                    nice_error = "Слишком много сторис подряд. Попробуй позже"
+                else:
+                    story["status"] = "error"
+                    story["error_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    story["error_text"] = error_text
+                    updated = True
 
-                elif "failure while processing image" in raw_error:
-                    nice_error = "Telegram не принял фото. Попробуй другое изображение"
+                    raw_error = str(error_text).lower()
+                    nice_error = "Неизвестная ошибка"
 
-                elif "video" in raw_error:
-                    nice_error = "Telegram не принял видео. Попробуй mp4 до 60 секунд"
+                    if "premium account is required" in raw_error:
+                        nice_error = "Требуется Telegram Premium"
+                    elif "not authorized" in raw_error or "не авторизован" in raw_error:
+                        nice_error = "Аккаунт не авторизован"
+                    elif "photo not found" in raw_error or "фото не найдено" in raw_error:
+                        nice_error = "Фото не найдено"
+                    elif "file not found" in raw_error or "файл не найден" in raw_error:
+                        nice_error = "Файл не найден"
+                    elif "stories_too_much" in raw_error:
+                        nice_error = "Слишком много сторис подряд. Попробуй позже"
+                    elif "failure while processing image" in raw_error:
+                        nice_error = "Telegram не принял фото. Попробуй другое изображение"
+                    elif "video" in raw_error:
+                        nice_error = "Telegram не принял видео. Попробуй mp4 до 60 секунд"
 
-                await notify_owner(
-                    story,
-                    f"⚠️ Не удалось опубликовать сторис\n\n"
-                    f"Аккаунт: {display_name}\n"
-                    f"Причина: {nice_error}"
-                )
+                    await notify_owner(
+                        story,
+                        f"⚠️ Не удалось опубликовать сторис\n\n"
+                        f"Аккаунт: {display_name}\n"
+                        f"Причина: {nice_error}"
+                    )
 
-        if updated:
-            stories = [
-                story for story in stories
-                if story.get("status") != "published"
-            ]
+            if updated:
+                stories = [
+                    story for story in stories
+                    if story.get("status") != "published"
+                ]
 
-            save_stories(stories)
+                save_stories(stories)
 
-        await asyncio.sleep(15)
+        except Exception as e:
+            print(f"WORKER GLOBAL ERROR: {e}", flush=True)
+
+        await asyncio.sleep(60)
 
 
 if __name__ == "__main__":
