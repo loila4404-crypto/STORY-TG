@@ -304,34 +304,38 @@ async def main():
             accounts = load_accounts()
             stories = get_all_stories()
 
-            print(f"Проверка очереди: {now_time}", flush=True)
+            print(f"Проверка очереди: {now_dt.strftime('%Y-%m-%d %H:%M')}", flush=True)
             print(f"Сторис в Supabase очереди: {len(stories)}", flush=True)
 
             for story in stories:
                 story_id = story.get("id")
 
+                publish_date = story.get("publish_date")
                 publish_time = story.get("publish_time")
+
+                if not publish_date:
+                    mark_story_error(story_id, "Нет даты публикации")
+                    continue
 
                 if not publish_time:
                     mark_story_error(story_id, "Нет времени публикации")
                     continue
 
                 try:
-                    publish_dt = datetime.strptime(publish_time, "%H:%M").replace(
-                        year=now_dt.year,
-                        month=now_dt.month,
-                        day=now_dt.day
+                    publish_dt = datetime.strptime(
+                        f"{publish_date} {publish_time}",
+                        "%Y-%m-%d %H:%M"
                     )
 
                 except ValueError:
-                    mark_story_error(story_id, "Неверный формат времени")
+                    mark_story_error(story_id, "Неверный формат даты или времени")
                     continue
 
                 if publish_dt > now_dt:
                     continue
 
                 print(
-                    f"Нашел сторис для публикации: {story.get('display_name')} / {publish_time}",
+                    f"Нашел сторис для публикации: {story.get('display_name')} / {publish_date} {publish_time}",
                     flush=True
                 )
 
@@ -341,7 +345,7 @@ async def main():
 
                 display_name = story.get("display_name", story.get("account_name"))
                 caption = story.get("caption", "")
-                published_time = datetime.now().strftime("%H:%M")
+                published_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
                 if success:
                     mark_story_published(story_id)
@@ -351,7 +355,7 @@ async def main():
                         story,
                         f"✅ Сторис опубликована\n\n"
                         f"Аккаунт: {display_name}\n"
-                        f"Время: {published_time}\n"
+                        f"Время: {published_at}\n"
                         f"Подпись: {caption}"
                     )
 
