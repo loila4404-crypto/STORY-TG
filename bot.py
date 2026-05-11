@@ -3,6 +3,7 @@ import os
 import asyncio
 import re
 from datetime import datetime
+from supabase_files import upload_story_file
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -826,36 +827,69 @@ async def story_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STORY_PHOTO
 
     account_name = context.user_data["story_account_name"]
+    owner_id = update.effective_user.id
 
     if update.message.video or update.message.video_note:
         video = update.message.video or update.message.video_note
+
         file = await video.get_file()
 
-        filename = f"{account_name}_{update.effective_user.id}_{update.message.message_id}.mp4"
-        file_path = os.path.join(STORIES_DIR, filename)
+        filename = f"{account_name}_{owner_id}_{update.message.message_id}.mp4"
 
-        await file.download_to_drive(file_path)
+        local_path = os.path.join(STORIES_DIR, filename)
 
-        context.user_data["story_file_path"] = file_path
-        context.user_data["story_photo_path"] = file_path
+        await file.download_to_drive(local_path)
+
+        storage_path = upload_story_file(
+            local_path=local_path,
+            owner_id=owner_id,
+            account_name=account_name,
+            original_name=filename
+        )
+
+        try:
+            os.remove(local_path)
+        except:
+            pass
+
+        context.user_data["story_storage_path"] = storage_path
         context.user_data["story_media_type"] = "video"
 
-        await update.message.reply_text("Видео сохранено ✅\nТеперь напиши подпись для сторис.")
+        await update.message.reply_text(
+            "Видео загружено ✅\nТеперь напиши подпись для сторис."
+        )
+
         return STORY_CAPTION
 
     photo = update.message.photo[-1]
+
     file = await photo.get_file()
 
-    filename = f"{account_name}_{update.effective_user.id}_{update.message.message_id}.jpg"
-    file_path = os.path.join(STORIES_DIR, filename)
+    filename = f"{account_name}_{owner_id}_{update.message.message_id}.jpg"
 
-    await file.download_to_drive(file_path)
+    local_path = os.path.join(STORIES_DIR, filename)
 
-    context.user_data["story_file_path"] = file_path
-    context.user_data["story_photo_path"] = file_path
+    await file.download_to_drive(local_path)
+
+    storage_path = upload_story_file(
+        local_path=local_path,
+        owner_id=owner_id,
+        account_name=account_name,
+        original_name=filename
+    )
+
+    try:
+        os.remove(local_path)
+    except:
+        pass
+
+    context.user_data["story_storage_path"] = storage_path
     context.user_data["story_media_type"] = "photo"
 
-    await update.message.reply_text("Фото сохранено ✅\nТеперь напиши подпись для сторис.")
+    await update.message.reply_text(
+        "Фото загружено ✅\nТеперь напиши подпись для сторис."
+    )
+
     return STORY_CAPTION
 
 
@@ -899,8 +933,11 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "owner_id": update.effective_user.id,
         "account_name": context.user_data["story_account_name"],
         "display_name": context.user_data["story_display_name"],
-        "file_path": context.user_data.get("story_file_path") or context.user_data.get("story_photo_path"),
-        "photo_path": context.user_data.get("story_photo_path") or context.user_data.get("story_file_path"),
+
+        "storage_path": context.user_data.get("story_storage_path"),
+        "file_path": None,
+        "photo_path": None,
+
         "media_type": context.user_data.get("story_media_type", "photo"),
         "caption": context.user_data["story_caption"],
         "publish_time": publish_time,
@@ -940,6 +977,10 @@ async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer("Это просто список аккаунтов.")
 
 
+async def error_handler(update, context):
+    print("BOT ERROR:", context.error, flush=True)
+
+
 def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN не найден в .env")
@@ -948,14 +989,13 @@ def main():
         raise RuntimeError("API_ID или API_HASH не найдены в .env")
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_error_handler(error_handler)
+
     app.add_handler(CallbackQueryHandler(noop_callback, pattern="^noop$"))
 
     main_conv = ConversationHandler(
         entry_points=[
-            MessageHandler(filters.Regex("^➕ Добавить аккаунт$"), add_account_start),
-            MessageHandler(filters.Regex("^🗑 Удалить аккаунт$"), delete_account_start),
-            MessageHandler(filters.Regex("^📸 Добавить сторис$"), add_story_start),
-            
             MessageHandler(filters.Regex("^➕ Добавить аккаунт$"), add_account_start),
             MessageHandler(filters.Regex("^🗑 Удалить аккаунт$"), delete_account_start),
             MessageHandler(filters.Regex("^📸 Добавить сторис$"), add_story_start),
@@ -969,12 +1009,10 @@ def main():
                 CommandHandler("cancel", cancel),
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, password),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, password),
-          ],
-
+            ],
             DELETE_ACCOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_account_choose)],
-
             STORY_ACCOUNT: [
-              CallbackQueryHandler(story_account_callback, pattern="^story_acc_")
+                CallbackQueryHandler(story_account_callback, pattern="^story_acc_")
             ],
             STORY_PHOTO: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.VIDEO_NOTE, story_photo)],
             STORY_CAPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, story_caption)],
@@ -988,9 +1026,14 @@ def main():
     app.add_handler(main_conv)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Бот Stories запущен...")
+    print("Бот Stories запущен...", flush=True)
     print("STARTING POLLING...", flush=True)
-    app.run_polling(close_loop=False)
+
+    app.run_polling(
+        close_loop=False,
+        drop_pending_updates=True,
+        allowed_updates=Update.ALL_TYPES
+    )
 
 
 if __name__ == "__main__":
