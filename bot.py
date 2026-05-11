@@ -8,7 +8,7 @@ from supabase_files import upload_story_file
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from storage import get_accounts_dict, save_account, delete_account, save_accounts, add_story_to_queue
+from storage import get_accounts_dict, save_account, delete_account, save_accounts, add_story_to_queue, get_next_proxy
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
 from telegram.ext import (
@@ -577,6 +577,8 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session_string = client.session.save()
 
+    proxy = get_next_proxy()
+
     account_data = {
         "owner_id": user_id,
         "display_name": display_name,
@@ -584,8 +586,18 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "telegram_id": me.id,
         "username": me.username,
         "first_name": me.first_name,
-        "session_string": session_string
+        "session_string": session_string,
     }
+
+    proxy_text = "не назначен"
+
+    if proxy:
+        account_data["proxy_host"] = proxy.get("proxy_host")
+        account_data["proxy_port"] = proxy.get("proxy_port")
+        account_data["proxy_user"] = proxy.get("proxy_user")
+        account_data["proxy_pass"] = proxy.get("proxy_pass")
+
+        proxy_text = f"{proxy.get('proxy_host')}:{proxy.get('proxy_port')}"
 
     save_account(account_name, account_data)
 
@@ -595,7 +607,8 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Аккаунт подключен!\n\n"
         f"Название: {display_name}\n"
         f"Имя: {me.first_name}\n"
-        f"Username: {username}\n\n"
+        f"Username: {username}\n"
+        f"Proxy: {proxy_text}\n\n"
         f"Теперь можно выкладывать сторис через этот аккаунт.",
         reply_markup=menu
     )
