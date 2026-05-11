@@ -908,13 +908,20 @@ async def story_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def story_caption(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = update.message.text.strip()
+
     context.user_data["story_caption"] = caption
 
     await update.message.reply_text(
-        "⏰ Теперь введи время публикации.\n\n"
+        "📅 Теперь введи дату публикации\n\n"
+        "Примеры:\n"
+        "12.05\n"
+        "12 05\n"
+        "12/05\n"
+        "12,05\n"
+        "завтра"
     )
 
-    return STORY_TIME
+    return STORY_DATE
 
 
 async def story_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
