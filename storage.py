@@ -32,6 +32,25 @@ def init_db():
                     updated_at TIMESTAMP DEFAULT NOW()
                 );
             """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS stories_queue (
+                    id BIGSERIAL PRIMARY KEY,
+                    owner_id BIGINT NOT NULL,
+                    account_name TEXT NOT NULL,
+                    display_name TEXT,
+                    storage_path TEXT,
+                    media_type TEXT DEFAULT 'photo',
+                    caption TEXT,
+                    publish_time TEXT NOT NULL,
+                    status TEXT DEFAULT 'scheduled',
+                    error_text TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    published_at TIMESTAMP,
+                    error_at TIMESTAMP
+                );
+            """)
+
         conn.commit()
 
 
@@ -121,3 +140,107 @@ def save_accounts(accounts):
 
     for account_name, account_data in accounts.items():
         save_account(account_name, account_data)
+
+
+def add_story_to_queue(story):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                INSERT INTO stories_queue (
+                    owner_id,
+                    account_name,
+                    display_name,
+                    storage_path,
+                    media_type,
+                    caption,
+                    publish_time,
+                    status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'scheduled')
+                RETURNING id
+                """,
+                (
+                    story.get("owner_id"),
+                    story.get("account_name"),
+                    story.get("display_name"),
+                    story.get("storage_path"),
+                    story.get("media_type", "photo"),
+                    story.get("caption", ""),
+                    story.get("publish_time"),
+                )
+            )
+
+            row = cur.fetchone()
+
+        conn.commit()
+
+    return row["id"]
+
+
+def get_all_stories():
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT *
+                FROM stories_queue
+                WHERE status = 'scheduled'
+                ORDER BY id ASC
+            """)
+            rows = cur.fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def mark_story_published(story_id):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE stories_queue
+                SET status = 'published',
+                    published_at = NOW()
+                WHERE id = %s
+                """,
+                (story_id,)
+            )
+
+        conn.commit()
+
+
+def mark_story_error(story_id, error_text):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE stories_queue
+                SET status = 'error',
+                    error_text = %s,
+                    error_at = NOW()
+                WHERE id = %s
+                """,
+                (str(error_text), story_id)
+            )
+
+        conn.commit()
+
+
+def delete_published_stories():
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM stories_queue
+                WHERE status = 'published'
+            """)
+
+        conn.commit()
