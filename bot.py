@@ -43,7 +43,7 @@ STORIES_QUEUE_FILE = "stories_queue.json"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(STORIES_DIR, exist_ok=True)
 
-ACCOUNT_NAME, PHONE, CODE, PASSWORD, STORY_ACCOUNT, STORY_PHOTO, STORY_CAPTION, STORY_TIME, DELETE_ACCOUNT = range(9)
+ACCOUNT_NAME, PHONE, CODE, PASSWORD, STORY_ACCOUNT, STORY_PHOTO, STORY_CAPTION, STORY_DATE, STORY_TIME, DELETE_ACCOUNT = range(10)
 
 menu = ReplyKeyboardMarkup(
     [
@@ -1017,13 +1017,24 @@ def main():
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, password),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, password),
             ],
-            DELETE_ACCOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_account_choose)],
+            DELETE_ACCOUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, delete_account_choose)
+            ],
             STORY_ACCOUNT: [
                 CallbackQueryHandler(story_account_callback, pattern="^story_acc_")
             ],
-            STORY_PHOTO: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.VIDEO_NOTE, story_photo)],
-            STORY_CAPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, story_caption)],
-            STORY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, story_time)],
+            STORY_PHOTO: [
+                MessageHandler(filters.PHOTO | filters.VIDEO | filters.VIDEO_NOTE, story_photo)
+            ],
+            STORY_CAPTION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, story_caption)
+            ],
+            STORY_DATE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, story_date)
+            ],
+            STORY_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, story_time)
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         allow_reentry=True,
