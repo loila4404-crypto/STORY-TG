@@ -8,7 +8,7 @@ from supabase_files import upload_story_file
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from storage import get_accounts_dict, save_account, delete_account, save_accounts
+from storage import get_accounts_dict, save_account, delete_account, save_accounts, add_story_to_queue
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
 from telegram.ext import (
@@ -933,20 +933,14 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "owner_id": update.effective_user.id,
         "account_name": context.user_data["story_account_name"],
         "display_name": context.user_data["story_display_name"],
-
         "storage_path": context.user_data.get("story_storage_path"),
-        "file_path": None,
-        "photo_path": None,
-
         "media_type": context.user_data.get("story_media_type", "photo"),
         "caption": context.user_data["story_caption"],
         "publish_time": publish_time,
         "status": "scheduled",
     }
 
-    stories = load_stories_queue()
-    stories.append(story)
-    save_stories_queue(stories)
+    add_story_to_queue(story)
 
     await update.message.reply_text(
         f"✅ Сторис поставлена в очередь!\n\n"
