@@ -28,8 +28,33 @@ def init_db():
                     username TEXT,
                     first_name TEXT,
                     session_string TEXT,
+                    api_slot BIGINT,
+                    api_name TEXT,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+
+            cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS api_slot BIGINT;
+            """)
+
+            cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS api_name TEXT;
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_pool (
+                    id BIGSERIAL PRIMARY KEY,
+                    api_name TEXT NOT NULL,
+                    api_id BIGINT NOT NULL,
+                    api_hash TEXT NOT NULL,
+                    max_accounts INTEGER DEFAULT 10,
+                    used_count INTEGER DEFAULT 0,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
 
@@ -42,6 +67,7 @@ def init_db():
                     storage_path TEXT,
                     media_type TEXT DEFAULT 'photo',
                     caption TEXT,
+                    publish_date TEXT,
                     publish_time TEXT NOT NULL,
                     status TEXT DEFAULT 'scheduled',
                     error_text TEXT,
@@ -49,6 +75,11 @@ def init_db():
                     published_at TIMESTAMP,
                     error_at TIMESTAMP
                 );
+            """)
+
+            cur.execute("""
+                ALTER TABLE stories_queue
+                ADD COLUMN IF NOT EXISTS publish_date TEXT;
             """)
 
         conn.commit()
@@ -87,6 +118,8 @@ def save_account(account_name, account_data):
                     username,
                     first_name,
                     session_string,
+                    api_slot,
+                    api_name,
 
                     proxy_host,
                     proxy_port,
@@ -96,7 +129,7 @@ def save_account(account_name, account_data):
                     updated_at
                 )
                 VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     NOW()
                 )
@@ -110,6 +143,8 @@ def save_account(account_name, account_data):
                     username = EXCLUDED.username,
                     first_name = EXCLUDED.first_name,
                     session_string = EXCLUDED.session_string,
+                    api_slot = EXCLUDED.api_slot,
+                    api_name = EXCLUDED.api_name,
 
                     proxy_host = EXCLUDED.proxy_host,
                     proxy_port = EXCLUDED.proxy_port,
@@ -127,6 +162,8 @@ def save_account(account_name, account_data):
                     account_data.get("username"),
                     account_data.get("first_name"),
                     account_data.get("session_string"),
+                    account_data.get("api_slot"),
+                    account_data.get("api_name"),
 
                     account_data.get("proxy_host"),
                     account_data.get("proxy_port"),
@@ -300,3 +337,51 @@ def get_next_proxy():
         conn.commit()
 
     return dict(proxy)
+
+
+def get_api_pool():
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT *
+                FROM api_pool
+                WHERE is_active = TRUE
+                ORDER BY id ASC
+            """)
+
+            rows = cur.fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def get_api_by_id(api_slot):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT *
+                FROM api_pool
+                WHERE id = %s
+                LIMIT 1
+            """, (api_slot,))
+
+            row = cur.fetchone()
+
+    return dict(row) if row else None
+
+
+def increase_api_used_count(api_slot):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE api_pool
+                SET used_count = used_count + 1
+                WHERE id = %s
+            """, (api_slot,))
+
+        conn.commit()
