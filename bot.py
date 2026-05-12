@@ -18,6 +18,7 @@ from storage import (
     get_api_pool,
     get_api_by_id,
     increase_api_used_count,
+    decrease_api_used_count
 )
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
@@ -850,6 +851,10 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
     account_name, info = my_accounts[index]
     display_name = info.get("display_name", account_name)
 
+    api_slot = info.get("api_slot")
+
+    decrease_api_used_count(api_slot)
+
     delete_account(account_name)
 
     await update.message.reply_text(
@@ -860,6 +865,7 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
     context.user_data.clear()
+
     return ConversationHandler.END
 
 
