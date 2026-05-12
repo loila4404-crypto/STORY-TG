@@ -385,3 +385,20 @@ def increase_api_used_count(api_slot):
             """, (api_slot,))
 
         conn.commit()
+
+
+def decrease_api_used_count(api_slot):
+    if not api_slot:
+        return
+
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE api_pool
+                SET used_count = GREATEST(used_count - 1, 0)
+                WHERE id = %s
+            """, (api_slot,))
+
+        conn.commit()
