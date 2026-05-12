@@ -8,7 +8,17 @@ from supabase_files import upload_story_file
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from storage import get_accounts_dict, save_account, delete_account, save_accounts, add_story_to_queue, get_next_proxy
+from storage import (
+    get_accounts_dict,
+    save_account,
+    delete_account,
+    save_accounts,
+    add_story_to_queue,
+    get_next_proxy,
+    get_api_pool,
+    get_api_by_id,
+    increase_api_used_count,
+)
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
 from telegram.ext import (
@@ -31,8 +41,6 @@ from telethon.errors import (
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = int(os.getenv("API_ID", "0"))
-API_HASH = os.getenv("API_HASH")
 
 SESSIONS_DIR = "sessions"
 STORIES_DIR = "stories"
@@ -43,7 +51,7 @@ STORIES_QUEUE_FILE = "stories_queue.json"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(STORIES_DIR, exist_ok=True)
 
-ACCOUNT_NAME, PHONE, CODE, PASSWORD, STORY_ACCOUNT, STORY_PHOTO, STORY_CAPTION, STORY_DATE, STORY_TIME, DELETE_ACCOUNT = range(10)
+API_SELECT, ACCOUNT_NAME, PHONE, CODE, PASSWORD, STORY_ACCOUNT, STORY_PHOTO, STORY_CAPTION, STORY_DATE, STORY_TIME, DELETE_ACCOUNT = range(11)
 
 menu = ReplyKeyboardMarkup(
     [
@@ -149,10 +157,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             client = None
 
             try:
+                api_slot = info.get("api_slot")
+                api = get_api_by_id(api_slot)
+
+                if not api:
+                    api_pool = get_api_pool()
+
+                    if not api_pool:
+                        continue
+
+                    api = api_pool[0]
+
                 client = TelegramClient(
                     StringSession(session_string),
-                    API_ID,
-                    API_HASH
+                    api["api_id"],
+                    api["api_hash"]
                 )
 
                 await client.connect()
@@ -179,9 +198,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         row = []
 
         for name, info in my_accounts:
+            api_name = info.get("api_name", "API")
+
             row.append(
                 InlineKeyboardButton(
-                    info.get("display_name", name),
+                    f"{info.get('display_name', name)} | {api_name}",
                     callback_data="noop"
                 )
             )
@@ -230,11 +251,80 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_account_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    api_pool = get_api_pool()
+
+    if not api_pool:
+        await update.message.reply_text(
+            "❌ В Supabase нет активных API.\n\n"
+            "Сначала добавь API в таблицу api_pool.",
+            reply_markup=menu
+        )
+        return ConversationHandler.END
+
+    buttons = []
+
+    for api in api_pool:
+        used = api.get("used_count", 0)
+        limit = api.get("max_accounts", 10)
+
+        text = f"{api['api_name']} {used}/{limit}"
+
+        if used >= limit:
+            text += " 🔴"
+
+        buttons.append([
+            InlineKeyboardButton(
+                text,
+                callback_data=f"api_select_{api['id']}"
+            )
+        ])
+
     await update.message.reply_text(
-        "➕ Введи название аккаунта.\n\n"
-        "Например:\n"
-        "SofiVip\n"
+        "Выбери API-группу для новой сессии:",
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
+
+    return API_SELECT
+
+
+async def api_select_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    api_id = int(query.data.replace("api_select_", ""))
+
+    api = get_api_by_id(api_id)
+
+    if not api:
+        await query.message.reply_text(
+            "❌ API не найден или выключен.",
+            reply_markup=menu
+        )
+        return ConversationHandler.END
+
+    used = api.get("used_count", 0)
+    limit = api.get("max_accounts", 10)
+
+    if used >= limit:
+        await query.message.reply_text(
+            f"⚠️ Лимит для {api['api_name']} уже заполнен: {used}/{limit}\n\n"
+            f"Выбери другой API.",
+            reply_markup=menu
+        )
+        return ConversationHandler.END
+
+    context.user_data["api_slot"] = api["id"]
+    context.user_data["api_name"] = api["api_name"]
+    context.user_data["api_id"] = api["api_id"]
+    context.user_data["api_hash"] = api["api_hash"]
+
+    await query.message.reply_text(
+        f"✅ Выбран API: {api['api_name']} {used}/{limit}\n\n"
+        f"Теперь введи название аккаунта.\n\n"
+        f"Например:\n"
+        f"SofiVip"
+    )
+
     return ACCOUNT_NAME
 
 
@@ -259,10 +349,21 @@ async def account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             if old_session_string:
+                api_slot = old_info.get("api_slot")
+                api = get_api_by_id(api_slot)
+
+                if not api:
+                    api_pool = get_api_pool()
+
+                    if not api_pool:
+                        raise RuntimeError("Нет активных API")
+
+                    api = api_pool[0]
+
                 client = TelegramClient(
                     StringSession(old_session_string),
-                    API_ID,
-                    API_HASH
+                    api["api_id"],
+                    api["api_hash"]
                 )
 
                 await client.connect()
@@ -318,10 +419,21 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             try:
                 if old_session_string:
+                    api_slot = existing_info.get("api_slot")
+                    api = get_api_by_id(api_slot)
+
+                    if not api:
+                        api_pool = get_api_pool()
+
+                        if not api_pool:
+                            raise RuntimeError("В Supabase нет активных API")
+
+                        api = api_pool[0]
+
                     old_client = TelegramClient(
                         StringSession(old_session_string),
-                        API_ID,
-                        API_HASH
+                        api["api_id"],
+                        api["api_hash"]
                     )
 
                     await old_client.connect()
@@ -350,7 +462,22 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if accounts_changed:
         save_accounts(accounts)
 
-    client = TelegramClient(StringSession(), API_ID, API_HASH)
+    api_id = context.user_data.get("api_id")
+    api_hash = context.user_data.get("api_hash")
+
+    if not api_id or not api_hash:
+        await update.message.reply_text(
+            "❌ API не выбран. Начни добавление аккаунта заново.",
+            reply_markup=menu
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    client = TelegramClient(
+        StringSession(),
+        api_id,
+        api_hash
+    )
 
     try:
         await client.connect()
@@ -377,10 +504,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         return ConversationHandler.END
 
-    except Exception:
+    except Exception as e:
         await client.disconnect()
         await update.message.reply_text(
-            "⛔ Доступ запрещен",
+            f"⛔ Доступ запрещен\n\nОшибка: {e}",
             reply_markup=menu
         )
 
@@ -538,10 +665,17 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             try:
                 if old_session_string:
+
+                    api_slot = existing_info.get("api_slot")
+                    api = get_api_by_id(api_slot)
+
+                    if not api:
+                        raise RuntimeError("API старой сессии не найден")
+
                     old_client = TelegramClient(
                         StringSession(old_session_string),
-                        API_ID,
-                        API_HASH
+                        api["api_id"],
+                        api["api_hash"]
                     )
 
                     await old_client.connect()
@@ -587,6 +721,9 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "username": me.username,
         "first_name": me.first_name,
         "session_string": session_string,
+
+        "api_slot": context.user_data.get("api_slot"),
+        "api_name": context.user_data.get("api_name"),
     }
 
     proxy_text = "не назначен"
@@ -601,20 +738,29 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     save_account(account_name, account_data)
 
+    increase_api_used_count(
+        context.user_data.get("api_slot")
+    )
+
     username = f"@{me.username}" if me.username else "нет username"
+
+    api_name = context.user_data.get("api_name", "Unknown")
 
     await update.message.reply_text(
         f"✅ Аккаунт подключен!\n\n"
         f"Название: {display_name}\n"
         f"Имя: {me.first_name}\n"
         f"Username: {username}\n"
+        f"API: {api_name}\n"
         f"Proxy: {proxy_text}\n\n"
         f"Теперь можно выкладывать сторис через этот аккаунт.",
         reply_markup=menu
     )
 
     await client.disconnect()
+
     context.user_data.clear()
+
     return ConversationHandler.END
 
 
@@ -638,10 +784,16 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
         client = None
 
         try:
+            api_slot = info.get("api_slot")
+            api = get_api_by_id(api_slot)
+
+            if not api:
+                continue
+
             client = TelegramClient(
                 StringSession(session_string),
-                API_ID,
-                API_HASH
+                api["api_id"],
+                api["api_hash"]
             )
 
             await client.connect()
@@ -671,7 +823,8 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
     msg = "🗑 Выбери аккаунт для удаления:\n\n"
 
     for i, (name, info) in enumerate(my_accounts, start=1):
-        msg += f"{i}. {info.get('display_name', name)}\n"
+        api_name = info.get("api_name", "API неизвестен")
+        msg += f"{i}. {info.get('display_name', name)} — {api_name}\n"
 
     msg += "\nВведи номер аккаунта."
 
@@ -729,10 +882,21 @@ async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         client = None
 
         try:
+            api_slot = info.get("api_slot")
+            api = get_api_by_id(api_slot)
+
+            if not api:
+                api_pool = get_api_pool()
+
+                if not api_pool:
+                    continue
+
+                api = api_pool[0]
+
             client = TelegramClient(
                 StringSession(session_string),
-                API_ID,
-                API_HASH
+                api["api_id"],
+                api["api_hash"]
             )
 
             await client.connect()
@@ -763,9 +927,11 @@ async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     row = []
 
     for i, (name, info) in enumerate(my_accounts):
+        api_name = info.get("api_name", "API")
+
         row.append(
             InlineKeyboardButton(
-                info.get("display_name", name),
+                f"{info.get('display_name', name)} | {api_name}",
                 callback_data=f"story_acc_{i}"
             )
         )
@@ -1054,9 +1220,6 @@ def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN не найден в .env")
 
-    if not API_ID or not API_HASH:
-        raise RuntimeError("API_ID или API_HASH не найдены в .env")
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_error_handler(error_handler)
@@ -1070,9 +1233,18 @@ def main():
             MessageHandler(filters.Regex("^📸 Добавить сторис$"), add_story_start),
         ],
         states={
-            ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, account_name)],
-            PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone)],
-            CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, code)],
+            API_SELECT: [
+                CallbackQueryHandler(api_select_callback, pattern="^api_select_")
+            ],
+            ACCOUNT_NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, account_name)
+            ],
+            PHONE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, phone)
+            ],
+            CODE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, code)
+            ],
             PASSWORD: [
                 MessageHandler(filters.Regex("^❌ Отмена$"), cancel),
                 CommandHandler("cancel", cancel),
