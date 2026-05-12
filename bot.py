@@ -821,34 +821,54 @@ async def delete_account_start(update: Update, context: ContextTypes.DEFAULT_TYP
 
     context.user_data["delete_accounts"] = my_accounts
 
-    msg = "🗑 Выбери аккаунт для удаления:\n\n"
+    buttons = []
+    row = []
 
-    for i, (name, info) in enumerate(my_accounts, start=1):
-        api_name = info.get("api_name", "API неизвестен")
-        msg += f"{i}. {info.get('display_name', name)} — {api_name}\n"
+    for i, (name, info) in enumerate(my_accounts):
+        api_name = info.get("api_name", "API")
 
-    msg += "\nВведи номер аккаунта."
+        row.append(
+            InlineKeyboardButton(
+                f"{info.get('display_name', name)} — {api_name}",
+                callback_data=f"delete_acc_{i}"
+            )
+        )
 
-    await update.message.reply_text(msg)
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+
+    if row:
+        buttons.append(row)
+
+    await update.message.reply_text(
+        "🗑 Выбери аккаунт для удаления:",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
     return DELETE_ACCOUNT
 
 
 async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
+    query = update.callback_query
 
-    if not text.isdigit():
-        await update.message.reply_text("Введи номер аккаунта цифрой.")
-        return DELETE_ACCOUNT
+    await query.answer()
 
-    index = int(text) - 1
+    data = query.data.replace("delete_acc_", "")
+
+    if not data.isdigit():
+        return ConversationHandler.END
+
+    index = int(data)
+
     my_accounts = context.user_data.get("delete_accounts", [])
 
     if index < 0 or index >= len(my_accounts):
-        await update.message.reply_text("Такого номера нет. Введи ещё раз.")
-        return DELETE_ACCOUNT
+        await query.message.reply_text("Аккаунт не найден.")
+        return ConversationHandler.END
 
     account_name, info = my_accounts[index]
+
     display_name = info.get("display_name", account_name)
 
     api_slot = info.get("api_slot")
@@ -857,7 +877,7 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
 
     delete_account(account_name)
 
-    await update.message.reply_text(
+    await query.message.reply_text(
         f"✅ Аккаунт удалён.\n\n"
         f"Аккаунт: {display_name}\n"
         f"Сессия: удалена из Supabase",
@@ -1258,7 +1278,7 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, password),
             ],
             DELETE_ACCOUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, delete_account_choose)
+                CallbackQueryHandler(delete_account_choose, pattern="^delete_acc_")
             ],
             STORY_ACCOUNT: [
                 CallbackQueryHandler(story_account_callback, pattern="^story_acc_")
