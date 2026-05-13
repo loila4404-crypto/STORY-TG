@@ -609,7 +609,31 @@ async def generate_qr_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        await qr_login.wait()
+        try:
+            await qr_login.wait()
+
+        except SessionPasswordNeededError:
+            WEBAPP_URL = "https://story-tg-fbm0.onrender.com/webapp/2fa.html"
+
+            await query.message.reply_text(
+                "🔐 На аккаунте включен пароль 2FA.\n\n"
+                "Нажми кнопку ниже и введи пароль безопасно.",
+                reply_markup=ReplyKeyboardMarkup(
+                    [
+                        [
+                            KeyboardButton(
+                                "🔐 Ввести 2FA пароль",
+                                web_app=WebAppInfo(url=WEBAPP_URL)
+                            )
+                        ],
+                        ["❌ Отмена"]
+                    ],
+                    resize_keyboard=True,
+                    one_time_keyboard=False
+                )
+            )
+
+            return PASSWORD
 
         return await finish_account(update, context)
 
