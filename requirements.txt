@@ -9,3 +9,4 @@ supabase
 psycopg2-binary
 python-socks
 PySocks
+qrcode[pil]
