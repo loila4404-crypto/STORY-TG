@@ -2,6 +2,8 @@ import json
 import os
 import asyncio
 import re
+import qrcode
+import tempfile
 from datetime import datetime, timedelta
 from supabase_files import upload_story_file
 
@@ -518,8 +520,112 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["client"] = client
     context.user_data["phone"] = phone_number
 
-    await update.message.reply_text("Код отправлен ✅\n\nВведи код из Telegram.")
+    buttons = []
+
+    if phone_number.startswith("+380"):
+        buttons.append([
+            InlineKeyboardButton(
+                "🔳 Сгенерировать QR",
+                callback_data="generate_qr_login"
+            )
+        ])
+
+    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+
+    await update.message.reply_text(
+        "Код отправлен ✅\n\n"
+        "Введи код из Telegram.\n\n"
+        "Если код не пришёл, нажми кнопку QR ниже.",
+        reply_markup=reply_markup
+    )
+
     return CODE
+
+
+async def generate_qr_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    old_client = context.user_data.get("client")
+
+    try:
+        if old_client:
+            await old_client.disconnect()
+    except Exception:
+        pass
+
+    api_id = context.user_data.get("api_id")
+    api_hash = context.user_data.get("api_hash")
+
+    if not api_id or not api_hash:
+        await query.message.reply_text(
+            "❌ API не найден. Начни заново.",
+            reply_markup=menu
+        )
+
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    client = TelegramClient(
+        StringSession(),
+        api_id,
+        api_hash
+    )
+
+    await client.connect()
+    context.user_data["client"] = client
+
+    try:
+        qr_login = await client.qr_login()
+
+        qr = qrcode.QRCode(border=2)
+        qr.add_data(qr_login.url)
+        qr.make(fit=True)
+
+        img = qr.make_image(
+            fill_color="black",
+            back_color="white"
+        )
+
+        temp = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".png"
+        )
+
+        img.save(temp.name)
+        temp.close()
+
+        with open(temp.name, "rb") as photo:
+            await query.message.reply_photo(
+                photo=photo,
+                caption=(
+                    "🔳 Отсканируй QR в Telegram\n\n"
+                    "Telegram → Настройки → Устройства → Подключить устройство"
+                )
+            )
+
+        try:
+            os.remove(temp.name)
+        except Exception:
+            pass
+
+        await qr_login.wait()
+
+        return await finish_account(update, context)
+
+    except Exception as e:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+        await query.message.reply_text(
+            f"❌ Ошибка QR входа:\n{e}",
+            reply_markup=menu
+        )
+
+        context.user_data.clear()
+        return ConversationHandler.END
 
 
 async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -537,7 +643,6 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CODE
 
     except SessionPasswordNeededError:
-
         WEBAPP_URL = "https://story-tg-fbm0.onrender.com/webapp/2fa.html"
 
         await update.message.reply_text(
@@ -645,6 +750,11 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
+    reply_target = update.message
+
+    if not reply_target and update.callback_query:
+        reply_target = update.callback_query.message
+
     client = context.user_data["client"]
     account_name = context.user_data["account_name"]
     display_name = context.user_data["display_name"]
@@ -666,7 +776,6 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             try:
                 if old_session_string:
-
                     api_slot = existing_info.get("api_slot")
                     api = get_api_by_id(api_slot)
 
@@ -693,7 +802,7 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if is_active:
                 username_text = f"@{me.username}" if me.username else "нет username"
 
-                await update.message.reply_text(
+                await reply_target.reply_text(
                     f"⚠️ Этот Telegram уже добавлен.\n\n"
                     f"Название: {existing_info.get('display_name', existing_name)}\n"
                     f"Username: {username_text}",
@@ -722,7 +831,6 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "username": me.username,
         "first_name": me.first_name,
         "session_string": session_string,
-
         "api_slot": context.user_data.get("api_slot"),
         "api_name": context.user_data.get("api_name"),
     }
@@ -744,10 +852,9 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     username = f"@{me.username}" if me.username else "нет username"
-
     api_name = context.user_data.get("api_name", "Unknown")
 
-    await update.message.reply_text(
+    await reply_target.reply_text(
         f"✅ Аккаунт подключен!\n\n"
         f"Название: {display_name}\n"
         f"Имя: {me.first_name}\n"
@@ -1269,7 +1376,14 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, phone)
             ],
             CODE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, code)
+                CallbackQueryHandler(
+                    generate_qr_login,
+                    pattern="^generate_qr_login$"
+                ),
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    code
+                )
             ],
             PASSWORD: [
                 MessageHandler(filters.Regex("^❌ Отмена$"), cancel),
