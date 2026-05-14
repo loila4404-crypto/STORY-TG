@@ -20,7 +20,11 @@ from storage import (
     get_api_pool,
     get_api_by_id,
     increase_api_used_count,
-    decrease_api_used_count
+    decrease_api_used_count,
+
+    get_user_limit,
+    update_account_limit,
+    update_story_limit
 )
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
@@ -272,6 +276,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_account_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    limit_data = get_user_limit(user_id)
+
+    if limit_data and limit_data.get("last_account_add_at"):
+
+        last_add = limit_data["last_account_add_at"]
+
+        diff = datetime.now() - last_add
+
+        if diff.total_seconds() < 600:
+
+            remain = int((600 - diff.total_seconds()) // 60) + 1
+
+            await update.message.reply_text(
+                f"⏳ Лимит на подключение аккаунтов.\n\n"
+                f"Попробуй снова через {remain} мин."
+            )
+
+            return ConversationHandler.END
+
     api_pool = get_api_pool()
 
     if not api_pool:
@@ -889,6 +915,8 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     save_account(account_name, account_data)
 
+    update_account_limit(user_id)
+
     increase_api_used_count(
         context.user_data.get("api_slot")
     )
@@ -1040,6 +1068,26 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def add_story_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
+    limit_data = get_user_limit(user_id)
+
+    if limit_data and limit_data.get("last_story_add_at"):
+
+        last_story = limit_data["last_story_add_at"]
+
+        diff = datetime.now() - last_story
+
+        if diff.total_seconds() < 600:
+
+            remain = int((600 - diff.total_seconds()) // 60) + 1
+
+            await update.message.reply_text(
+                f"⏳ Лимит на добавление сторис.\n\n"
+                f"Следующую сторис можно добавить через {remain} мин."
+            )
+
+            return ConversationHandler.END
+
     accounts = load_accounts()
 
     my_accounts = []
@@ -1356,6 +1404,8 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     add_story_to_queue(story)
+
+    update_story_limit(update.effective_user.id)
 
     await update.message.reply_text(
         f"✅ Сторис поставлена в очередь!\n\n"
