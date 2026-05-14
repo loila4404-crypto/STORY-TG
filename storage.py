@@ -46,6 +46,26 @@ def init_db():
             """)
 
             cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS proxy_host TEXT;
+            """)
+
+            cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS proxy_port TEXT;
+            """)
+
+            cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS proxy_user TEXT;
+            """)
+
+            cur.execute("""
+                ALTER TABLE accounts
+                ADD COLUMN IF NOT EXISTS proxy_pass TEXT;
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS api_pool (
                     id BIGSERIAL PRIMARY KEY,
                     api_name TEXT NOT NULL,
