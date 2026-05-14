@@ -299,7 +299,6 @@ async def main():
     while True:
         try:
             now_dt = datetime.now() + timedelta(hours=3)
-            now_time = now_dt.strftime("%H:%M")
 
             accounts = load_accounts()
             stories = get_all_stories()
@@ -341,8 +340,6 @@ async def main():
 
                 success, error_text = await publish_story(story, accounts)
 
-                await asyncio.sleep(300)
-
                 display_name = story.get("display_name", story.get("account_name"))
                 caption = story.get("caption", "")
                 published_at = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -364,22 +361,29 @@ async def main():
 
                     raw_error = str(error_text).lower()
                     nice_error = "Неизвестная ошибка"
+                    extra_sleep = 300
 
                     if "premium account is required" in raw_error:
                         nice_error = "Требуется Telegram Premium"
+                        extra_sleep = 60
                     elif "not authorized" in raw_error or "не авторизован" in raw_error:
                         nice_error = "Аккаунт не авторизован"
+                        extra_sleep = 60
                     elif "photo not found" in raw_error or "фото не найдено" in raw_error:
                         nice_error = "Фото не найдено"
+                        extra_sleep = 60
                     elif "file not found" in raw_error or "файл не найден" in raw_error:
                         nice_error = "Файл не найден"
+                        extra_sleep = 60
                     elif "stories_too_much" in raw_error:
                         nice_error = "Слишком много сторис подряд. Делаю паузу 10 минут"
-                        await asyncio.sleep(600)
+                        extra_sleep = 600
                     elif "failure while processing image" in raw_error:
                         nice_error = "Telegram не принял фото. Попробуй другое изображение"
+                        extra_sleep = 60
                     elif "video" in raw_error:
                         nice_error = "Telegram не принял видео. Попробуй mp4 до 60 секунд"
+                        extra_sleep = 60
 
                     await notify_owner(
                         story,
@@ -387,6 +391,11 @@ async def main():
                         f"Аккаунт: {display_name}\n"
                         f"Причина: {nice_error}"
                     )
+
+                    await asyncio.sleep(extra_sleep)
+                    continue
+
+                await asyncio.sleep(300)
 
         except Exception as e:
             print(f"WORKER GLOBAL ERROR: {e}", flush=True)
