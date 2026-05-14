@@ -341,7 +341,7 @@ async def main():
 
                 success, error_text = await publish_story(story, accounts)
 
-                await asyncio.sleep(30)
+                await asyncio.sleep(300)
 
                 display_name = story.get("display_name", story.get("account_name"))
                 caption = story.get("caption", "")
@@ -374,7 +374,8 @@ async def main():
                     elif "file not found" in raw_error or "файл не найден" in raw_error:
                         nice_error = "Файл не найден"
                     elif "stories_too_much" in raw_error:
-                        nice_error = "Слишком много сторис подряд. Попробуй позже"
+                        nice_error = "Слишком много сторис подряд. Делаю паузу 10 минут"
+                        await asyncio.sleep(600)
                     elif "failure while processing image" in raw_error:
                         nice_error = "Telegram не принял фото. Попробуй другое изображение"
                     elif "video" in raw_error:
