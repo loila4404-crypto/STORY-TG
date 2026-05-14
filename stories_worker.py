@@ -376,7 +376,12 @@ async def main():
                         nice_error = "Файл не найден"
                         extra_sleep = 60
                     elif "stories_too_much" in raw_error:
-                        nice_error = "Слишком много сторис подряд. Делаю паузу 10 минут"
+                        nice_error = (
+                         "Telegram временно ограничил публикацию сторис.\n"
+                         "Слишком много сторис подряд.\n\n"
+                         "Попробуй снова через 10–30 минут."
+                      ) 
+
                         extra_sleep = 600
                     elif "failure while processing image" in raw_error:
                         nice_error = "Telegram не принял фото. Попробуй другое изображение"
