@@ -405,3 +405,76 @@ def decrease_api_used_count(api_slot):
             """, (api_slot,))
 
         conn.commit()
+
+
+from datetime import datetime, timedelta
+
+
+def get_user_limit(owner_id):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_limits (
+                    owner_id BIGINT PRIMARY KEY,
+                    last_account_add_at TIMESTAMP,
+                    last_story_add_at TIMESTAMP
+                );
+            """)
+
+            conn.commit()
+
+            cur.execute("""
+                SELECT *
+                FROM user_limits
+                WHERE owner_id = %s
+                LIMIT 1
+            """, (owner_id,))
+
+            row = cur.fetchone()
+
+    return dict(row) if row else None
+
+
+def update_account_limit(owner_id):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                INSERT INTO user_limits (
+                    owner_id,
+                    last_account_add_at
+                )
+                VALUES (%s, NOW())
+
+                ON CONFLICT (owner_id)
+                DO UPDATE SET
+                    last_account_add_at = NOW()
+            """, (owner_id,))
+
+        conn.commit()
+
+
+def update_story_limit(owner_id):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                INSERT INTO user_limits (
+                    owner_id,
+                    last_story_add_at
+                )
+                VALUES (%s, NOW())
+
+                ON CONFLICT (owner_id)
+                DO UPDATE SET
+                    last_story_add_at = NOW()
+            """, (owner_id,))
+
+        conn.commit()
