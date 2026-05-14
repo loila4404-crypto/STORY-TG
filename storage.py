@@ -250,8 +250,11 @@ def get_all_stories():
                 SELECT *
                 FROM stories_queue
                 WHERE status = 'scheduled'
+                AND published_at IS NULL
+                AND error_at IS NULL
                 ORDER BY id ASC
             """)
+
             rows = cur.fetchall()
 
     return [dict(row) for row in rows]
