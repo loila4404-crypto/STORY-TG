@@ -19,6 +19,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.head("/health")
+def health_head():
+    return
+
+
 def run_worker():
     subprocess.Popen([sys.executable, "-u", "stories_worker.py"]).wait()
 
