@@ -3,9 +3,17 @@ import os
 import asyncio
 import re
 import qrcode
+import logging
 import tempfile
 from datetime import datetime, timedelta
 from supabase_files import upload_story_file
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -452,6 +460,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     accounts = load_accounts()
 
+    logger.info(
+        f"[LOGIN] Пользователь ввел номер | user={user_id} | phone={phone_number}"
+    )
+
     accounts_changed = False
 
     for existing_name, existing_info in list(accounts.items()):
@@ -487,7 +499,11 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     is_active = await old_client.is_user_authorized()
                     await old_client.disconnect()
 
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"[LOGIN] Ошибка проверки старой сессии | user={user_id} | phone={phone_number} | error={e}"
+                )
+
                 try:
                     if old_client:
                         await old_client.disconnect()
@@ -495,6 +511,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pass
 
             if is_active:
+                logger.warning(
+                    f"[LOGIN] Номер уже подключен | user={user_id} | phone={phone_number}"
+                )
+
                 await update.message.reply_text(
                     f"⚠️ Этот номер уже подключен.\n\n"
                     f"Аккаунт: {existing_info.get('display_name', existing_name)}",
@@ -502,6 +522,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 context.user_data.clear()
                 return ConversationHandler.END
+
+            logger.info(
+                f"[LOGIN] Удаляю старую неактивную сессию | user={user_id} | account={existing_name}"
+            )
 
             del accounts[existing_name]
             accounts_changed = True
@@ -513,6 +537,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     api_hash = context.user_data.get("api_hash")
 
     if not api_id or not api_hash:
+        logger.error(
+            f"[LOGIN] API не выбран | user={user_id} | phone={phone_number}"
+        )
+
         await update.message.reply_text(
             "❌ API не выбран. Начни добавление аккаунта заново.",
             reply_markup=menu
@@ -532,7 +560,16 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await client.is_user_authorized():
             context.user_data["client"] = client
             context.user_data["phone"] = phone_number
+
+            logger.info(
+                f"[LOGIN] Клиент уже авторизован | user={user_id} | phone={phone_number}"
+            )
+
             return await finish_account(update, context)
+
+        logger.info(
+            f"[LOGIN] Отправка кода | user={user_id} | phone={phone_number}"
+        )
 
         await update.message.reply_text("Отправляю код в Telegram, подожди...")
 
@@ -541,7 +578,15 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             timeout=30
         )
 
+        logger.info(
+            f"[LOGIN] Код отправлен | user={user_id} | phone={phone_number}"
+        )
+
     except asyncio.TimeoutError:
+        logger.error(
+            f"[LOGIN] Timeout отправки кода | user={user_id} | phone={phone_number}"
+        )
+
         await client.disconnect()
         await update.message.reply_text(
             "❌ Telegram долго не отвечает при отправке кода.\n\n"
@@ -552,6 +597,10 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     except Exception as e:
+        logger.error(
+            f"[LOGIN] Ошибка отправки кода | user={user_id} | phone={phone_number} | error={e}"
+        )
+
         await client.disconnect()
         await update.message.reply_text(
             f"⛔ Доступ запрещен\n\nОшибка: {e}",
@@ -852,6 +901,10 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     account_name = context.user_data["account_name"]
     display_name = context.user_data["display_name"]
 
+    logger.info(
+        f"[LOGIN] Завершение подключения | user={user_id} | account={display_name}"
+    )
+
     me = await client.get_me()
     accounts = load_accounts()
 
@@ -885,7 +938,11 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     is_active = await old_client.is_user_authorized()
                     await old_client.disconnect()
 
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"[LOGIN] Ошибка проверки дубля | user={user_id} | account={existing_name} | error={e}"
+                )
+
                 try:
                     if old_client:
                         await old_client.disconnect()
@@ -894,6 +951,10 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if is_active:
                 username_text = f"@{me.username}" if me.username else "нет username"
+
+                logger.warning(
+                    f"[LOGIN] Попытка добавить уже подключенный Telegram | user={user_id} | telegram_id={me.id} | username={username_text}"
+                )
 
                 await reply_target.reply_text(
                     f"⚠️ Этот Telegram уже добавлен.\n\n"
@@ -905,6 +966,10 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await client.disconnect()
                 context.user_data.clear()
                 return ConversationHandler.END
+
+            logger.info(
+                f"[LOGIN] Удаляю старую неактивную запись | user={user_id} | account={existing_name}"
+            )
 
             del accounts[existing_name]
             accounts_changed = True
@@ -938,6 +1003,14 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         proxy_text = f"{proxy.get('proxy_host')}:{proxy.get('proxy_port')}"
 
+        logger.info(
+            f"[LOGIN] Назначен proxy | user={user_id} | account={display_name} | proxy={proxy_text}"
+        )
+    else:
+        logger.warning(
+            f"[LOGIN] Proxy не назначен | user={user_id} | account={display_name}"
+        )
+
     save_account(account_name, account_data)
 
     update_account_limit(user_id)
@@ -948,6 +1021,10 @@ async def finish_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     username = f"@{me.username}" if me.username else "нет username"
     api_name = context.user_data.get("api_name", "Unknown")
+
+    logger.info(
+        f"[LOGIN] Аккаунт успешно подключен | user={user_id} | account={display_name} | username={username} | api={api_name}"
+    )
 
     await reply_target.reply_text(
         f"✅ Аккаунт подключен!\n\n"
@@ -1392,7 +1469,12 @@ async def story_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     raw_time = update.message.text.strip()
+
+    logger.info(
+        f"[STORY] Пользователь ввел время | user={user_id} | raw_time={raw_time}"
+    )
 
     cleaned = re.sub(r"[^\d]", "", raw_time)
 
@@ -1400,6 +1482,10 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cleaned = "0" + cleaned
 
     if len(cleaned) != 4:
+        logger.warning(
+            f"[STORY] Неверный формат времени | user={user_id} | raw_time={raw_time}"
+        )
+
         await update.message.reply_text(
             "❌ Неверное время.\n\nПримеры:\n16:30\n1630\n16 30"
         )
@@ -1409,6 +1495,10 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     minutes = int(cleaned[2:])
 
     if hours > 23 or minutes > 59:
+        logger.warning(
+            f"[STORY] Неверное время | user={user_id} | raw_time={raw_time}"
+        )
+
         await update.message.reply_text(
             "❌ Неверное время.\n\nПример:\n16:30"
         )
@@ -1417,7 +1507,7 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     publish_time = f"{hours:02d}:{minutes:02d}"
 
     story = {
-        "owner_id": update.effective_user.id,
+        "owner_id": user_id,
         "account_name": context.user_data["story_account_name"],
         "display_name": context.user_data["story_display_name"],
         "storage_path": context.user_data.get("story_storage_path"),
@@ -1428,9 +1518,13 @@ async def story_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "status": "scheduled",
     }
 
-    add_story_to_queue(story)
+    story_id = add_story_to_queue(story)
 
-    update_story_limit(update.effective_user.id)
+    update_story_limit(user_id)
+
+    logger.info(
+        f"[STORY] Сторис добавлена в очередь | user={user_id} | story_id={story_id} | account={story['display_name']} | date={story['publish_date']} | time={publish_time} | media={story['media_type']}"
+    )
 
     await update.message.reply_text(
         f"✅ Сторис поставлена в очередь!\n\n"
