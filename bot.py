@@ -564,23 +564,20 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["client"] = client
     context.user_data["phone"] = phone_number
 
-    buttons = []
-
-    if phone_number.startswith("+380"):
-        buttons.append([
+    buttons = [
+        [
             InlineKeyboardButton(
                 "🔳 Сгенерировать QR",
                 callback_data="generate_qr_login"
             )
-        ])
-
-    reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+        ]
+    ]
 
     await update.message.reply_text(
         "Код отправлен ✅\n\n"
         "Введи код из Telegram.\n\n"
-        "Если код не пришёл, нажми кнопку QR ниже.",
-        reply_markup=reply_markup
+        "Если код не пришёл или истёк — нажми кнопку QR ниже.",
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
 
     return CODE
@@ -706,7 +703,8 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except PhoneCodeInvalidError:
         await update.message.reply_text(
-            "❌ Неверный код. Введи код еще раз."
+            "❌ Неверный код.\n\n"
+            "Проверь код из Telegram и введи еще раз."
         )
         return CODE
 
@@ -733,11 +731,38 @@ async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return PASSWORD
 
     except Exception as e:
-        await client.disconnect()
+        error_text = str(e).lower()
+
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+        if "confirmation code has expired" in error_text:
+            await update.message.reply_text(
+                "⌛ Код Telegram истёк.\n\n"
+                "Начни подключение аккаунта заново и введи новый код сразу после получения.\n\n"
+                "Если код снова не подходит — используй вход через QR.",
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "🔳 Войти через QR",
+                                callback_data="generate_qr_login"
+                            )
+                        ]
+                    ]
+                )
+            )
+
+            return CODE
 
         await update.message.reply_text(
-            f"❌ Ошибка входа:\n{e}"
+            f"❌ Ошибка входа:\n{e}",
+            reply_markup=menu
         )
+
+        context.user_data.clear()
 
         return ConversationHandler.END
 
