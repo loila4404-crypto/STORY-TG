@@ -297,6 +297,26 @@ def mark_story_published(story_id):
 
         conn.commit()
 
+def mark_story_processing(story_id):
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE stories_queue
+                SET status = 'processing'
+                WHERE id = %s
+                AND status = 'scheduled'
+                """,
+                (story_id,)
+            )
+
+            updated = cur.rowcount
+
+        conn.commit()
+
+    return updated > 0
 
 def mark_story_error(story_id, error_text):
     init_db()
@@ -426,6 +446,26 @@ def decrease_api_used_count(api_slot):
 
         conn.commit()
 
+def decrease_proxy_used_count(proxy_host, proxy_port):
+    if not proxy_host or not proxy_port:
+        return
+
+    init_db()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                UPDATE proxy_pool
+                SET used_count = GREATEST(used_count - 1, 0)
+                WHERE proxy_host = %s
+                AND proxy_port = %s
+            """, (
+                proxy_host,
+                proxy_port
+            ))
+
+        conn.commit()
 
 from datetime import datetime, timedelta
 
