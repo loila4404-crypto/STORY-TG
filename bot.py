@@ -29,6 +29,7 @@ from storage import (
     get_api_by_id,
     increase_api_used_count,
     decrease_api_used_count,
+    decrease_proxy_used_count,
 
     get_user_limit,
     update_account_limit,
@@ -1152,14 +1153,24 @@ async def delete_account_choose(update: Update, context: ContextTypes.DEFAULT_TY
 
     api_slot = info.get("api_slot")
 
+    proxy_host = info.get("proxy_host")
+    proxy_port = info.get("proxy_port")
+
     decrease_api_used_count(api_slot)
+
+    decrease_proxy_used_count(
+        proxy_host,
+        proxy_port
+    )
 
     delete_account(account_name)
 
     await query.message.reply_text(
         f"✅ Аккаунт удалён.\n\n"
         f"Аккаунт: {display_name}\n"
-        f"Сессия: удалена из Supabase",
+        f"Сессия: удалена из Supabase\n"
+        f"API slot: освобождён\n"
+        f"Proxy: освобождён",
         reply_markup=menu
     )
 
