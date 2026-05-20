@@ -23,7 +23,9 @@ from storage import (
     get_all_stories,
     mark_story_published,
     mark_story_error,
-    delete_published_stories
+    delete_published_stories,
+    get_api_by_id,
+    mark_story_processing
 )
 
 load_dotenv()
@@ -77,26 +79,45 @@ def prepare_story_image(photo_path):
 
     target_w, target_h = 1080, 1920
 
-    img_ratio = img.width / img.height
+    # Фон из этой же фотки, растянутый и слегка размытый
+    bg = img.copy()
+    bg_ratio = bg.width / bg.height
     target_ratio = target_w / target_h
 
-    if img_ratio > target_ratio:
+    if bg_ratio > target_ratio:
         new_h = target_h
-        new_w = int(target_h * img_ratio)
+        new_w = int(target_h * bg_ratio)
     else:
         new_w = target_w
-        new_h = int(target_w / img_ratio)
+        new_h = int(target_w / bg_ratio)
 
-    img = img.resize((new_w, new_h), Image.LANCZOS)
+    bg = bg.resize((new_w, new_h), Image.LANCZOS)
 
     left = (new_w - target_w) // 2
     top = (new_h - target_h) // 2
-    img = img.crop((left, top, left + target_w, top + target_h))
+    bg = bg.crop((left, top, left + target_w, top + target_h))
+
+    from PIL import ImageFilter
+    bg = bg.filter(ImageFilter.GaussianBlur(radius=28))
+
+    # Основное фото целиком внутрь 1080x1920
+    img.thumbnail((target_w, target_h), Image.LANCZOS)
+
+    x = (target_w - img.width) // 2
+    y = (target_h - img.height) // 2
+
+    bg.paste(img, (x, y))
 
     base_name = os.path.basename(photo_path)
     prepared_path = os.path.join(PREPARED_DIR, f"prepared_{base_name}")
 
-    img.save(prepared_path, "JPEG", quality=90, optimize=True)
+    bg.save(
+        prepared_path,
+        "JPEG",
+        quality=95,
+        optimize=True,
+        progressive=True
+    )
 
     return prepared_path
 
@@ -116,18 +137,18 @@ def prepare_story_video(video_path):
         "-t", "60",
 
         "-vf",
-        "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
+        "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
 
         "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "32",
-        "-maxrate", "800k",
-        "-bufsize", "1200k",
+        "-preset", "veryfast",
+        "-crf", "23",
+        "-maxrate", "5000k",
+        "-bufsize", "10000k",
         "-pix_fmt", "yuv420p",
         "-threads", "1",
 
         "-c:a", "aac",
-        "-b:a", "96k",
+        "-b:a", "160k",
 
         "-movflags", "+faststart",
 
@@ -139,7 +160,7 @@ def prepare_story_video(video_path):
             command,
             capture_output=True,
             text=True,
-            timeout=180
+            timeout=300
         )
 
         if result.returncode != 0:
@@ -188,10 +209,17 @@ async def publish_story(story, accounts):
     else:
         print(f"Proxy для {account_name} не указан. Использую IP сервера.", flush=True)
 
+    api_slot = info.get("api_slot")
+    api = get_api_by_id(api_slot)
+
+    if not api:
+        print(f"API для аккаунта {account_name} не найден", flush=True)
+        return False, "API аккаунта не найден"
+
     client = TelegramClient(
         StringSession(session_string),
-        API_ID,
-        API_HASH,
+        api["api_id"],
+        api["api_hash"],
         proxy=proxy
     )
 
@@ -220,7 +248,7 @@ async def publish_story(story, accounts):
             await client.disconnect()
             return False, "Файл не найден"
 
-        print(f"Публикую сторис: {account_name}", flush=True)
+        print(f"Публикую сторис: {account_name}")
 
         if media_type == "video" or file_path.lower().endswith((".mp4", ".mov", ".m4v")):
             print(f"Готовлю видео: {file_path}", flush=True)
@@ -338,6 +366,13 @@ async def main():
                     flush=True
                 )
 
+                if not mark_story_processing(story_id):
+                    print(
+                        f"Сторис {story_id} уже обрабатывается другим worker",
+                        flush=True
+                    )
+                    continue
+
                 success, error_text = await publish_story(story, accounts)
 
                 display_name = story.get("display_name", story.get("account_name"))
@@ -366,26 +401,32 @@ async def main():
                     if "premium account is required" in raw_error:
                         nice_error = "Требуется Telegram Premium"
                         extra_sleep = 60
+
                     elif "not authorized" in raw_error or "не авторизован" in raw_error:
                         nice_error = "Аккаунт не авторизован"
                         extra_sleep = 60
+
                     elif "photo not found" in raw_error or "фото не найдено" in raw_error:
                         nice_error = "Фото не найдено"
                         extra_sleep = 60
+
                     elif "file not found" in raw_error or "файл не найден" in raw_error:
                         nice_error = "Файл не найден"
                         extra_sleep = 60
+
                     elif "stories_too_much" in raw_error:
                         nice_error = (
-                         "Telegram временно ограничил публикацию сторис.\n"
-                         "Слишком много сторис подряд.\n\n"
-                         "Попробуй снова через 10–30 минут."
-                      ) 
+                            "Telegram временно ограничил публикацию сторис.\n"
+                            "Слишком много сторис подряд.\n\n"
+                            "Попробуй снова через 10–30 минут."
+                        )
 
                         extra_sleep = 600
+
                     elif "failure while processing image" in raw_error:
                         nice_error = "Telegram не принял фото. Попробуй другое изображение"
                         extra_sleep = 60
+
                     elif "video" in raw_error:
                         nice_error = "Telegram не принял видео. Попробуй mp4 до 60 секунд"
                         extra_sleep = 60
